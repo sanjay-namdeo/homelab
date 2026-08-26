@@ -1,0 +1,16 @@
+{
+    admin off
+}
+
+# Tailscale TLS certificate for Vaultwarden
+{$TAILSCALE_FQDN} {
+    tls {
+        get_certificate tailscale
+    }
+    reverse_proxy vaultwarden:80
+}
+
+# Direct HTTP fallback: redirect to Tailscale HTTPS domain
+:80 {
+    redir https://{$TAILSCALE_FQDN}{uri} permanent
+}
