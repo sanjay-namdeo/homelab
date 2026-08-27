@@ -76,6 +76,24 @@ services:
           memory: 64M
           cpus: '0.50'
 
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "${TAILSCALE_IP:-127.0.0.1}:3001:3001"
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - /opt/homelab/data/uptime-kuma:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - homelab_net
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.50'
+
 networks:
   homelab_net:
     driver: bridge

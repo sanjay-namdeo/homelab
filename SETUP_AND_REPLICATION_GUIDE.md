@@ -1,5 +1,5 @@
 # Personal Cloud Hub: Setup & Full Replication Guide
-> **Services**: Vaultwarden (Bitwarden) &bull; AdGuard Home &bull; Caddy Reverse Proxy &bull; Tailscale WireGuard Mesh  
+> **Services**: Vaultwarden (Bitwarden) &bull; AdGuard Home &bull; Uptime Kuma &bull; Caddy Reverse Proxy &bull; Tailscale WireGuard Mesh  
 > **Security Model**: Zero public internet exposure &bull; Zero domain cost &bull; Automated Let's Encrypt TLS via Tailscale MagicDNS
 
 ---
@@ -196,6 +196,34 @@ To route 100% of your internet traffic through this server:
 - **Browser Secure DNS (DoH)**: If Chrome/Brave/Firefox returns `NXDOMAIN`, go to Browser Settings ➔ Search "Secure DNS" ➔ Set to "OS Default" or OFF.
 - **Android**: Set phone Settings ➔ Network ➔ **Private DNS** to **OFF** (Android Private DNS bypasses VPN DNS).
 - **iOS**: Turn **iCloud Private Relay** to **OFF** in iCloud settings.
+
+---
+
+## 📊 Uptime Kuma: Service Status & Monitoring Dashboard
+
+Uptime Kuma provides an all-in-one web dashboard to monitor the health, response times, SSL validity, and uptime of your entire homelab stack.
+
+### 1. Web UI Access
+Access the dashboard over your encrypted Tailscale network at:
+👉 **`http://<tailscale-ip>:3001`** (e.g. `http://<dev1-tailscale-ip>:3001` or `http://dev1:3001`)
+
+On initial access:
+1. Create your administrator username and password.
+2. The dashboard will open immediately.
+
+### 2. Recommended Monitors to Add
+
+| Monitor Name | Monitor Type | Target / URL | Heartbeat Interval |
+| :--- | :--- | :--- | :--- |
+| **Vaultwarden HTTPS** | `HTTP(s)` | `https://<tailscale-fqdn>/alive` | `60s` |
+| **AdGuard Home Web** | `HTTP(s)` | `http://adguardhome:80/login.html` | `60s` |
+| **AdGuard DNS Resolver** | `TCP Port` | Hostname: `adguardhome`, Port: `53` | `60s` |
+| **Caddy Reverse Proxy** | `TCP Port` | Hostname: `caddy`, Port: `443` | `60s` |
+| **Docker Containers** | `Docker Container` | Socket: `/var/run/docker.sock` | `60s` |
+
+### 3. Setting Up Alerts (Optional)
+In Uptime Kuma (**Settings ➔ Notifications**):
+- Connect your preferred alert provider: **Telegram**, **Discord**, **Pushover**, **Email (SMTP via Brevo)**, or **Slack** to receive instant alerts when a container or service goes down.
 
 ---
 

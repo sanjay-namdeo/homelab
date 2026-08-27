@@ -17,20 +17,23 @@ graph TD
     subgraph Host ["🖥️ Homelab Server (Linux / Docker)"]
         Caddy["⚡ Caddy Reverse Proxy (:80 / :443 TLS)"]
         VW["🔑 Vaultwarden (:8080)"]
-        AG["🛡️ AdGuard Home (:53, :3000, :8081)"]
+        AG["🛡️ AdGuard Home (:53, :8081)"]
+        UK["📊 Uptime Kuma (:3001)"]
     end
 
     Client <-->|Encrypted WireGuard Tunnel| TS
     TS --> Caddy
     Caddy -->|Reverse Proxy| VW
     Client -.->|Ad-Blocked DNS Queries| AG
+    Client -.->|Status & Monitoring UI| UK
 ```
 
 - **Tailscale**: WireGuard-based zero-trust encrypted mesh network providing secure private access with Exit Node capabilities and Tailscale SSH.
 - **Vaultwarden**: Lightweight self-hosted Bitwarden password manager (~16 MB RAM footprint).
-- **AdGuard Home**: Network-wide ad/tracker blocker and encrypted DNS resolver (~2 MB RAM footprint).
+- **AdGuard Home**: Network-wide ad/tracker blocker and encrypted DNS resolver (~18 MB RAM footprint).
+- **Uptime Kuma**: Self-hosted monitoring dashboard tracking service health, response times, SSL certificates, and alerting (~22 MB RAM footprint).
 - **Caddy**: High-performance reverse proxy for internal routing and automatic TLS termination via Tailscale local daemon.
-- **Total Resource Footprint**: Under ~30 MB RAM idle, strictly capped via Docker resource constraints.
+- **Total Resource Footprint**: Under ~60 MB RAM idle, strictly capped via Docker resource constraints.
 
 ---
 
@@ -142,6 +145,7 @@ docker compose restart
 # Restart a single service:
 docker compose restart vaultwarden
 docker compose restart adguardhome
+docker compose restart uptime-kuma
 docker compose restart caddy
 
 # Reload Caddy proxy configuration with zero downtime:

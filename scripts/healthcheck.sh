@@ -51,7 +51,7 @@ fi
 # 2. Docker Container Services
 # ------------------------------------------------------------------------------
 header "2. Container Service Health"
-CONTAINERS=("vaultwarden" "adguardhome" "caddy")
+CONTAINERS=("vaultwarden" "adguardhome" "caddy" "uptime-kuma")
 for c in "${CONTAINERS[@]}"; do
     if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
         STATUS=$(docker inspect --format='{{.State.Status}}' "${c}" 2>/dev/null || echo "unknown")
@@ -93,6 +93,14 @@ else
     warn "AdGuard Home Web UI returned status code ${AG_HTTP}"
 fi
 
+# Uptime Kuma Web UI
+UK_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://${TS_IP}:3001" 2>/dev/null || echo "000")
+if [[ "${UK_HTTP}" == "200" || "${UK_HTTP}" == "302" ]]; then
+    pass "Uptime Kuma Web UI is reachable (http://${TS_IP}:3001 -> HTTP ${UK_HTTP})"
+else
+    warn "Uptime Kuma Web UI returned status code ${UK_HTTP}"
+fi
+
 # Caddy HTTP Redirect
 CADDY_REDIR=$(curl -s -I "http://127.0.0.1/" 2>/dev/null | grep -i "Location:" || echo "")
 if [[ "${CADDY_REDIR}" =~ "https://" ]]; then
@@ -113,6 +121,12 @@ if [[ -n "${LAN_IP}" ]]; then
         pass "Port 8081 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
     else
         fail "Port 8081 is accessible on WAN/LAN interface (${LAN_IP})!"
+    fi
+
+    if ! nc -z -w 1 "${LAN_IP}" 3001 2>/dev/null; then
+        pass "Port 3001 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+    else
+        fail "Port 3001 is accessible on WAN/LAN interface (${LAN_IP})!"
     fi
 
     if ! nc -z -w 1 "${LAN_IP}" 53 2>/dev/null; then

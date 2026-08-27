@@ -47,7 +47,7 @@ mkdir -p "${TEMP_DIR}/vaultwarden" "${TEMP_DIR}/adguard" "${TEMP_DIR}/caddy" "${
 # ------------------------------------------------------------------------------
 # 1. Vaultwarden Point-in-Time SQLite Backup
 # ------------------------------------------------------------------------------
-log_info "[1/5] Creating live point-in-time SQLite snapshot of Vaultwarden..."
+log_info "[1/6] Creating live point-in-time SQLite snapshot of Vaultwarden..."
 VW_DB="${HOMELAB_DIR}/data/vaultwarden/db.sqlite3"
 
 if [[ -f "${VW_DB}" ]]; then
@@ -71,7 +71,7 @@ fi
 # ------------------------------------------------------------------------------
 # 2. AdGuard Home Configuration
 # ------------------------------------------------------------------------------
-log_info "[2/5] Backing up AdGuard Home configuration..."
+log_info "[2/6] Backing up AdGuard Home configuration..."
 if [[ -d "${HOMELAB_DIR}/data/adguard/conf" ]]; then
     cp -r "${HOMELAB_DIR}/data/adguard/conf" "${TEMP_DIR}/adguard/"
     log_success "AdGuard Home configuration backed up."
@@ -80,20 +80,40 @@ fi
 # ------------------------------------------------------------------------------
 # 3. Caddy Configuration & Certificate State
 # ------------------------------------------------------------------------------
-log_info "[3/5] Backing up Caddy reverse proxy files..."
+log_info "[3/6] Backing up Caddy reverse proxy files..."
 [[ -f "${HOMELAB_DIR}/Caddyfile" ]] && cp "${HOMELAB_DIR}/Caddyfile" "${TEMP_DIR}/caddy/"
 
 # ------------------------------------------------------------------------------
-# 4. Homelab Environment & Compose Definition
+# 4. Uptime Kuma Database Snapshot
 # ------------------------------------------------------------------------------
-log_info "[4/5] Archiving stack definition files..."
+log_info "[4/6] Creating live point-in-time SQLite snapshot of Uptime Kuma..."
+UK_DB="${HOMELAB_DIR}/data/uptime-kuma/kuma.db"
+mkdir -p "${TEMP_DIR}/uptime-kuma"
+if [[ -f "${UK_DB}" ]]; then
+    python3 -c "
+import sqlite3
+src = sqlite3.connect('${UK_DB}')
+dst = sqlite3.connect('${TEMP_DIR}/uptime-kuma/kuma.db')
+src.backup(dst)
+dst.close()
+src.close()
+"
+    log_success "Uptime Kuma database snapshot captured."
+else
+    log_warn "kuma.db not found, skipping SQLite snapshot."
+fi
+
+# ------------------------------------------------------------------------------
+# 5. Homelab Environment & Compose Definition
+# ------------------------------------------------------------------------------
+log_info "[5/6] Archiving stack definition files..."
 [[ -f "${HOMELAB_DIR}/.env" ]] && cp "${HOMELAB_DIR}/.env" "${TEMP_DIR}/config/"
 [[ -f "${HOMELAB_DIR}/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/docker-compose.yml" "${TEMP_DIR}/config/"
 
 # ------------------------------------------------------------------------------
-# 5. Compress, Restrict Permissions & Rotate Old Backups
+# 6. Compress, Restrict Permissions & Rotate Old Backups
 # ------------------------------------------------------------------------------
-log_info "[5/5] Creating compressed backup archive..."
+log_info "[6/6] Creating compressed backup archive..."
 FINAL_ARCHIVE="${BACKUP_ROOT}/${ARCHIVE_NAME}"
 tar -czf "${FINAL_ARCHIVE}" -C "${TEMP_DIR}" .
 chmod 600 "${FINAL_ARCHIVE}"
