@@ -155,12 +155,28 @@ if [ ! -f "${HOMELAB_DIR}/Caddyfile" ]; then
     admin off
 }
 
-# Tailscale TLS certificate for Vaultwarden
+# Tailscale TLS certificate for Vaultwarden (Port 443)
 {$TAILSCALE_FQDN} {
     tls {
         get_certificate tailscale
     }
     reverse_proxy vaultwarden:80
+}
+
+# Tailscale TLS certificate for AdGuard Home Web UI (Port 8081)
+{$TAILSCALE_FQDN}:8081 {
+    tls {
+        get_certificate tailscale
+    }
+    reverse_proxy adguardhome:80
+}
+
+# Tailscale TLS certificate for Uptime Kuma (Port 3001)
+{$TAILSCALE_FQDN}:3001 {
+    tls {
+        get_certificate tailscale
+    }
+    reverse_proxy uptime-kuma:3001
 }
 
 # Direct HTTP fallback: redirect to Tailscale HTTPS domain
@@ -185,5 +201,6 @@ echo "=========================================================="
 echo ""
 echo "Access Information (from any device connected to Tailscale):"
 echo " - Vaultwarden:   https://${TS_FQDN:-<your-tailscale-fqdn>}"
-echo " - AdGuard Home:  http://${TS_IP:-<your-tailscale-ip>}:8081 (Initial Setup: http://${TS_IP:-<tailscale-ip>}:3000)"
+echo " - AdGuard Home:  https://${TS_FQDN:-<your-tailscale-fqdn>}:8081"
+echo " - Uptime Kuma:   https://${TS_FQDN:-<your-tailscale-fqdn>}:3001"
 echo ""

@@ -15,17 +15,18 @@ graph TD
         TS["Tailscale Daemon (Exit Node & SSH)"]
     end
     subgraph Host ["🖥️ Homelab Server (Linux / Docker)"]
-        Caddy["⚡ Caddy Reverse Proxy (:80 / :443 TLS)"]
-        VW["🔑 Vaultwarden (:8080)"]
-        AG["🛡️ AdGuard Home (:53, :8081)"]
+        Caddy["⚡ Caddy Reverse Proxy (TLS :443, :8081, :3001)"]
+        VW["🔑 Vaultwarden (:80)"]
+        AG["🛡️ AdGuard Home (:53, :80)"]
         UK["📊 Uptime Kuma (:3001)"]
     end
 
     Client <-->|Encrypted WireGuard Tunnel| TS
     TS --> Caddy
-    Caddy -->|Reverse Proxy| VW
+    Caddy -->|HTTPS :443| VW
+    Caddy -->|HTTPS :8081| AG
+    Caddy -->|HTTPS :3001| UK
     Client -.->|Ad-Blocked DNS Queries| AG
-    Client -.->|Status & Monitoring UI| UK
 ```
 
 - **Tailscale**: WireGuard-based zero-trust encrypted mesh network providing secure private access with Exit Node capabilities and Tailscale SSH.
@@ -47,7 +48,7 @@ This repository leverages **Tailscale MagicDNS** to eliminate the need for:
 - ❌ Manually provisioning SSL certificates
 - ❌ Opening firewall ports 80/443 to the public internet
 
-Tailscale provisions free, trusted **Let's Encrypt SSL certificates** automatically for your machine's `*.ts.net` address.
+Tailscale provisions free, trusted **Let's Encrypt SSL certificates** automatically for your machine's `*.ts.net` address across all hosted services (Vaultwarden, AdGuard Home, and Uptime Kuma).
 
 ---
 
@@ -104,7 +105,8 @@ From any device (laptop, phone) connected to your Tailscale network:
 | Service | Access URL | Initial Setup Action |
 | :--- | :--- | :--- |
 | **Vaultwarden** | `https://<node>.<tailnet>.ts.net` | Create your master password account and link your Bitwarden browser extension / mobile app. |
-| **AdGuard Home** | `http://<tailscale-ip>:8081` *(or `:3000` on first run)* | Complete initial wizard (listen port 80 / 53) and select upstream DNS (e.g. Cloudflare DoH `https://cloudflare-dns.com/dns-query`). |
+| **AdGuard Home** | `https://<node>.<tailnet>.ts.net:8081` | Complete initial wizard (listen port 80 / 53) and select upstream DNS (e.g. Cloudflare DoH `https://cloudflare-dns.com/dns-query`). |
+| **Uptime Kuma** | `https://<node>.<tailnet>.ts.net:3001` | Create admin account, add monitoring checks and configure Brevo alert notifications. |
 | **Ad-Blocking Everywhere** | In Tailscale DNS settings | Set your server's Tailscale IP (`100.x.y.z`) as the **Global Nameserver** with *Override local DNS* enabled. |
 
 ### Step 3: Lock Down Registrations (Post-Setup Security)

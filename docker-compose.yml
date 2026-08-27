@@ -41,8 +41,6 @@ services:
       - "${TAILSCALE_IP:-127.0.0.1}:53:53/udp"
       - "127.0.0.1:53:53/tcp"
       - "127.0.0.1:53:53/udp"
-      - "${TAILSCALE_IP:-127.0.0.1}:8081:80/tcp"
-      - "127.0.0.1:8081:80/tcp"
     volumes:
       - /opt/homelab/data/adguard/work:/opt/adguardhome/work
       - /opt/homelab/data/adguard/conf:/opt/adguardhome/conf
@@ -63,6 +61,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "${TAILSCALE_IP:-127.0.0.1}:8081:8081"
+      - "127.0.0.1:8081:8081"
+      - "${TAILSCALE_IP:-127.0.0.1}:3001:3001"
+      - "127.0.0.1:3001:3001"
     volumes:
       - /opt/homelab/Caddyfile:/etc/caddy/Caddyfile:ro
       - /opt/homelab/data/caddy/data:/data
@@ -80,9 +82,6 @@ services:
     image: louislam/uptime-kuma:1
     container_name: uptime-kuma
     restart: unless-stopped
-    ports:
-      - "${TAILSCALE_IP:-127.0.0.1}:3001:3001"
-      - "127.0.0.1:3001:3001"
     volumes:
       - /opt/homelab/data/uptime-kuma:/app/data
       - /var/run/docker.sock:/var/run/docker.sock:ro

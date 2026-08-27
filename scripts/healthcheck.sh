@@ -85,20 +85,24 @@ else
     fail "AdGuard Home DNS resolution failed on ${TS_IP}:53"
 fi
 
-# AdGuard Home Web UI
-AG_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://${TS_IP}:8081/login.html" 2>/dev/null || echo "000")
-if [[ "${AG_HTTP}" == "200" ]]; then
-    pass "AdGuard Home Web UI is reachable (http://${TS_IP}:8081 -> HTTP 200 OK)"
-else
-    warn "AdGuard Home Web UI returned status code ${AG_HTTP}"
+# AdGuard Home Web UI (HTTPS)
+if [[ -n "${TS_FQDN}" ]]; then
+    AG_HTTP=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8081/login.html" 2>/dev/null || echo "000")
+    if [[ "${AG_HTTP}" == "200" ]]; then
+        pass "AdGuard Home Web UI HTTPS is responding (https://${TS_FQDN}:8081 -> HTTP 200 OK)"
+    else
+        warn "AdGuard Home Web UI HTTPS returned status code ${AG_HTTP}"
+    fi
 fi
 
-# Uptime Kuma Web UI
-UK_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://${TS_IP}:3001" 2>/dev/null || echo "000")
-if [[ "${UK_HTTP}" == "200" || "${UK_HTTP}" == "302" ]]; then
-    pass "Uptime Kuma Web UI is reachable (http://${TS_IP}:3001 -> HTTP ${UK_HTTP})"
-else
-    warn "Uptime Kuma Web UI returned status code ${UK_HTTP}"
+# Uptime Kuma Web UI (HTTPS)
+if [[ -n "${TS_FQDN}" ]]; then
+    UK_HTTP=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:3001" 2>/dev/null || echo "000")
+    if [[ "${UK_HTTP}" == "200" || "${UK_HTTP}" == "302" ]]; then
+        pass "Uptime Kuma Web UI HTTPS is responding (https://${TS_FQDN}:3001 -> HTTP ${UK_HTTP})"
+    else
+        warn "Uptime Kuma Web UI HTTPS returned status code ${UK_HTTP}"
+    fi
 fi
 
 # Caddy HTTP Redirect

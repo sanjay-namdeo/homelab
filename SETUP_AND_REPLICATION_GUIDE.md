@@ -150,8 +150,8 @@ On a brand new deployment, open:
 5. Finish the setup.
 
 ### 2. Post-Setup Dashboard Access
-Access the dashboard anytime at:
-👉 **`http://<tailscale-ip>:8081`**
+Access the dashboard anytime over HTTPS at:
+👉 **`https://<tailscale-fqdn>:8081`** (e.g. `https://dev1.<tailnet>.ts.net:8081`)
 
 ### 3. Recommended DNS Settings
 In AdGuard Home (**Settings ➔ DNS settings**):
@@ -168,15 +168,15 @@ In AdGuard Home (**Filters ➔ DNS blocklists**):
 - Click **Add blocklist** ➔ **Choose from list**:
   - `AdGuard DNS filter` (Enabled by default)
   - `AdGuard Tracking Protection`
-  - `OISD Blocklist Basic`
-  - `Peter Lowe's Ad and tracking server list`
+  - `AdGuard Annoyances filter`
+- Click **Save**.
 
 ---
 
-## 🌐 Tailscale Network-Wide Routing & Ad-Blocking
+## 🔒 Post-Setup: Tailscale Integration
 
-### 1. Global Ad-Blocking for All Tailnet Devices
-To filter DNS and block ads across all phones, tablets, and computers on your Tailscale network:
+### 1. Global Ad-Blocking (All Devices)
+Route all device DNS queries through your AdGuard Home container automatically:
 1. Open **[Tailscale Admin Console → DNS](https://login.tailscale.com/admin/dns)**.
 2. Under **Nameservers**, click **Add nameserver** ➔ **Custom...**
 3. Enter your server's Tailscale IP (e.g. `100.x.y.z` from `.env`).
@@ -204,8 +204,8 @@ To route 100% of your internet traffic through this server:
 Uptime Kuma provides an all-in-one web dashboard to monitor the health, response times, SSL validity, and uptime of your entire homelab stack.
 
 ### 1. Web UI Access
-Access the dashboard over your encrypted Tailscale network at:
-👉 **`http://<tailscale-ip>:3001`** (e.g. `http://<dev1-tailscale-ip>:3001` or `http://dev1:3001`)
+Access the dashboard over HTTPS on your encrypted Tailscale network at:
+👉 **`https://<tailscale-fqdn>:3001`** (e.g. `https://dev1.<tailnet>.ts.net:3001`)
 
 On initial access:
 1. Create your administrator username and password.
@@ -216,7 +216,8 @@ On initial access:
 | Monitor Name | Monitor Type | Target / URL | Heartbeat Interval |
 | :--- | :--- | :--- | :--- |
 | **Vaultwarden HTTPS** | `HTTP(s)` | `https://<tailscale-fqdn>/alive` | `60s` |
-| **AdGuard Home Web** | `HTTP(s)` | `http://adguardhome:80/login.html` | `60s` |
+| **AdGuard Home Web** | `HTTP(s)` | `https://<tailscale-fqdn>:8081/login.html` | `60s` |
+| **Uptime Kuma Web** | `HTTP(s)` | `https://<tailscale-fqdn>:3001` | `60s` |
 | **AdGuard DNS Resolver** | `TCP Port` | Hostname: `adguardhome`, Port: `53` | `60s` |
 | **Caddy Reverse Proxy** | `TCP Port` | Hostname: `caddy`, Port: `443` | `60s` |
 | **Docker Containers** | `Docker Container` | Socket: `/var/run/docker.sock` | `60s` |

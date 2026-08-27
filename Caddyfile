@@ -2,12 +2,28 @@
     admin off
 }
 
-# Tailscale TLS certificate for Vaultwarden
+# Tailscale TLS certificate for Vaultwarden (Port 443)
 {$TAILSCALE_FQDN} {
     tls {
         get_certificate tailscale
     }
     reverse_proxy vaultwarden:80
+}
+
+# Tailscale TLS certificate for AdGuard Home Web UI (Port 8081)
+{$TAILSCALE_FQDN}:8081 {
+    tls {
+        get_certificate tailscale
+    }
+    reverse_proxy adguardhome:80
+}
+
+# Tailscale TLS certificate for Uptime Kuma (Port 3001)
+{$TAILSCALE_FQDN}:3001 {
+    tls {
+        get_certificate tailscale
+    }
+    reverse_proxy uptime-kuma:3001
 }
 
 # Direct HTTP fallback: redirect to Tailscale HTTPS domain
