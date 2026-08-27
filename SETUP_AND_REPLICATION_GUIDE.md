@@ -529,6 +529,7 @@ sudo bash /opt/homelab/scripts/rollback.sh
 All persistent data is stored in [`/opt/homelab/data/`](file:///opt/homelab/data/):
 - `/opt/homelab/data/vaultwarden/`: SQLite database (`db.sqlite3`, `db.sqlite3-wal`), user RSA keys, attachments.
 - `/opt/homelab/data/adguard/conf/`: `AdGuardHome.yaml` configuration, filters, client rules.
+- `/opt/homelab/data/uptime-kuma/`: SQLite monitoring database (`kuma.db`), TLS tracking, monitor configurations.
 - `/opt/homelab/data/caddy/`: TLS certificates and Caddy configuration cache.
 - `/opt/homelab/data/backups/`: Local compressed and permission-locked (`0600`) archives.
 
@@ -592,18 +593,24 @@ sudo rclone lsf r2-crypt: --config /opt/homelab/data/rclone/rclone.conf
 
 # Download the latest backup
 sudo mkdir -p /opt/homelab/data/backups
-sudo rclone copy r2-crypt: /opt/homelab/data/backups/ --config /opt/homelab/data/rclone/rclone.conf
-```
-
-#### Step 4: Extract Data & Deploy Stack
+#### Step 4: Restore Data & Deploy Stack
 ```bash
-# Extract the archive into /opt/homelab
+# Run automated restore (extracts configs, database snapshots, and verifies SQLite integrity)
 LATEST_BACKUP=$(ls -t /opt/homelab/data/backups/homelab_backup_*.tar.gz | head -n 1)
-sudo tar -xzvf "${LATEST_BACKUP}" -C /opt/homelab/data/
+sudo bash /opt/homelab/scripts/restore_homelab.sh "${LATEST_BACKUP}"
 
-# Run automated deployment
+# Run automated deployment (provisions Tailscale, system configs, and launches containers)
 sudo bash /opt/homelab/scripts/deploy_stack.sh
 ```
+
+---
+
+### 3. Dry-Run / Isolated Disaster Recovery Validation
+You can safely test and validate your backup archive at any time in an isolated target directory without modifying running services:
+```bash
+sudo bash /opt/homelab/scripts/restore_homelab.sh /opt/homelab/data/backups/<backup_file>.tar.gz --target-dir /tmp/dr_test
+```
+
 
 ---
 

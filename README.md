@@ -163,6 +163,7 @@ The [`scripts/`](scripts/) directory contains a suite of automation tools:
 | [`deploy_stack.sh`](scripts/deploy_stack.sh) | **1-Command Setup** | Prepares systemd-resolved, installs Docker & Tailscale, generates Caddyfile with TLS, and starts services. |
 | [`healthcheck.sh`](scripts/healthcheck.sh) | **5-Tier Diagnostics** | Tests Tailscale mesh, Docker containers, HTTPS / DNS / Web UI endpoints, WAN port isolation, and RAM/disk. |
 | [`backup_homelab.sh`](scripts/backup_homelab.sh) | **Automated Backups** | Online hot-backup for SQLite (zero WAL corruption), archives configs & `.env` (`0600`), 14-day auto-rotation. |
+| [`restore_homelab.sh`](scripts/restore_homelab.sh) | **Disaster Recovery** | Point-in-time state extraction, SQLite integrity validation, supports dry-run isolated target testing. |
 | [`update_vaultwarden.sh`](scripts/update_vaultwarden.sh) | **Zero-Downtime Updates** | Pre-pulls new layers while running, takes safety SQLite snapshot, hot-swaps container (~1-2s), verifies health. |
 | [`rollback.sh`](scripts/rollback.sh) | **Complete Teardown** | Stops containers, purges Docker & Tailscale, restores system DNS, and wipes `/opt/homelab`. |
 
