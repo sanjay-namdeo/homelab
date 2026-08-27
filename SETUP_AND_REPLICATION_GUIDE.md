@@ -221,9 +221,30 @@ On initial access:
 | **Caddy Reverse Proxy** | `TCP Port` | Hostname: `caddy`, Port: `443` | `60s` |
 | **Docker Containers** | `Docker Container` | Socket: `/var/run/docker.sock` | `60s` |
 
-### 3. Setting Up Alerts (Optional)
-In Uptime Kuma (**Settings ➔ Notifications**):
-- Connect your preferred alert provider: **Telegram**, **Discord**, **Pushover**, **Email (SMTP via Brevo)**, or **Slack** to receive instant alerts when a container or service goes down.
+### 3. Setting Up Email / SMTP Alert Notifications (Brevo Relay)
+
+To receive real-time email alerts whenever a container goes down or recovers, configure Uptime Kuma with your Brevo SMTP credentials:
+
+1. In the Uptime Kuma UI, navigate to **Settings ➔ Notifications ➔ Setup Notification**.
+2. Select **Email (SMTP)** as the Notification Type.
+3. Fill in the connection parameters using the values from your `/opt/homelab/.env`:
+   - **Notification Type**: `Email (SMTP)`
+   - **Friendly Name**: `Brevo SMTP Alerts`
+   - **Hostname**: `smtp-relay.brevo.com` (from `SMTP_HOST`)
+   - **Port**: `587` (from `SMTP_PORT`)
+   - **Security**: `None / STARTTLS`
+   - **Username**: `<your-brevo-login-email>` (from `SMTP_USERNAME`)
+   - **Password**: `<your-brevo-smtp-key>` (from `SMTP_PASSWORD`)
+   - **From Email**: `vaultwarden@yourdomain.com` or `alerts@yourdomain.com` (from `SMTP_FROM`)
+   - **Recipient Email**: `<your-personal-alert-email>`
+   - **Subject**: `[Uptime Kuma] [{{STATUS}}] {{NAME}} is {{STATUS}}` (or default)
+4. Check **"Default enabled"** to automatically attach this alert channel to all current and future monitors.
+5. Click **"Test"** to send a test alert email and verify successful delivery.
+6. Click **"Save"**.
+
+> [!TIP]
+> You can also attach secondary notification providers (e.g. **Telegram**, **Discord**, **Pushover**, **Slack**, or **Webhook**) under the same **Settings ➔ Notifications** panel for multi-channel incident response.
+
 
 ---
 

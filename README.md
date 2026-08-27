@@ -129,7 +129,7 @@ All containers are configured with `restart: unless-stopped`, and `tailscaled` i
 1. Kernel optimizations (`vm.swappiness=15`, IP forwarding) are restored automatically via `/etc/sysctl.d/99-homelab.conf`.
 2. Port 53 stub listener bypass is applied automatically via `/etc/systemd/resolved.conf.d/adguard.conf`.
 3. Tailscale automatically reconnects and restores the WireGuard tunnel and Exit Node routing.
-4. Vaultwarden, AdGuard Home, and Caddy automatically start up.
+4. Vaultwarden, AdGuard Home, Uptime Kuma, and Caddy automatically start up.
 
 ### Post-Reboot Verification
 Allow **10–15 seconds** after boot for containers to initialize upstream DNS connections, then run:
