@@ -70,12 +70,25 @@ Files dropped into `/opt/homelab/data/dev2/firefly/import` can be processed auto
 sudo bash /opt/homelab/scripts/healthcheck.sh --host dev2
 ```
 
-### Automated Live Backup (MariaDB Hot Dump + Storage Assets)
+### Automated Live Backup & Cloudflare R2 Off-Site Sync
 ```bash
 sudo bash /opt/homelab/scripts/backup_homelab.sh --host dev2
+```
+*Creates an atomic MariaDB hot dump + Firefly uploads archive, restricts permissions (`0600`), prunes local backups older than 14 days, and syncs encrypted snapshots to Cloudflare R2 (`r2-crypt:`).*
+
+### Automated Daily Backup Timer (Runs Daily at 03:00 UTC)
+```bash
+# Check timer status
+systemctl status homelab-backup.timer
+systemctl list-timers homelab-backup.timer
 ```
 
 ### Disaster Recovery Restore
 ```bash
+# From local backup
 sudo bash /opt/homelab/scripts/restore_homelab.sh /opt/homelab/data/backups/homelab_backup_dev2_<timestamp>.tar.gz
+
+# Or pull latest encrypted backup from Cloudflare R2
+sudo rclone copy r2-crypt:<backup_name>.tar.gz /opt/homelab/data/backups/ --config /opt/homelab/data/rclone/rclone.conf
+sudo bash /opt/homelab/scripts/restore_homelab.sh /opt/homelab/data/backups/<backup_name>.tar.gz
 ```

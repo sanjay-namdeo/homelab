@@ -300,9 +300,45 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 5. Host Resource Consumption
+# 5. Backup & Off-Site Cloudflare R2 Sync Verification
 # ------------------------------------------------------------------------------
-header "5. System Resource Utilization"
+header "5. Backup & Off-Site Disaster Recovery"
+LATEST_BACKUP=$(ls -t "${HOMELAB_DIR}/data/backups/homelab_backup_${TARGET_HOST}_"*.tar.gz 2>/dev/null | head -n 1 || echo "")
+if [[ -n "${LATEST_BACKUP}" && -f "${LATEST_BACKUP}" ]]; then
+    BACKUP_FILE=$(basename "${LATEST_BACKUP}")
+    BACKUP_SIZE=$(du -h "${LATEST_BACKUP}" | awk '{print $1}')
+    BACKUP_DATE=$(stat -c "%y" "${LATEST_BACKUP}" 2>/dev/null | cut -d. -f1 || echo "")
+    pass "Latest local backup exists: ${BACKUP_FILE} (${BACKUP_SIZE}, ${BACKUP_DATE})"
+else
+    warn "No local backup found in ${HOMELAB_DIR}/data/backups for host '${TARGET_HOST}'"
+fi
+
+RCLONE_CONF="${HOMELAB_DIR}/data/rclone/rclone.conf"
+if [[ -f "${RCLONE_CONF}" ]]; then
+    RCLONE_PERMS=$(stat -c "%a" "${RCLONE_CONF}" 2>/dev/null || echo "")
+    if [[ "${RCLONE_PERMS}" == "600" ]]; then
+        pass "Cloudflare R2 rclone configuration is present and secured (0600)"
+    else
+        warn "Cloudflare R2 rclone configuration permissions: ${RCLONE_PERMS} (recommended: 0600)"
+    fi
+else
+    warn "Cloudflare R2 rclone configuration not found (${RCLONE_CONF})"
+fi
+
+# Check systemd timer or cron
+if systemctl is-active --quiet homelab-backup.timer 2>/dev/null; then
+    NEXT_RUN=$(systemctl list-timers homelab-backup.timer --no-legend 2>/dev/null | awk '{print $1" "$2" "$3}' || echo "")
+    pass "Automated daily backup timer is active (Next scheduled: ${NEXT_RUN})"
+elif crontab -l 2>/dev/null | grep -q "backup_homelab.sh"; then
+    pass "Automated backup cron job is configured in crontab"
+else
+    warn "No automated backup timer (homelab-backup.timer) or cron job detected"
+fi
+
+# ------------------------------------------------------------------------------
+# 6. Host Resource Consumption
+# ------------------------------------------------------------------------------
+header "6. System Resource Utilization"
 RAM_TOTAL=$(free -h | awk '/Mem:/ {print $2}')
 RAM_USED=$(free -h | awk '/Mem:/ {print $3}')
 SWAP_TOTAL=$(free -h | awk '/Swap:/ {print $2}')

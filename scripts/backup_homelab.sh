@@ -111,6 +111,7 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     fi
 
     # 3. Firefly Data Importer Files & Configurations
+    log_info "[3/4] Archiving Firefly Data Importer files and configurations..."
     if [[ -d "${HOMELAB_DIR}/data/dev2/firefly/import" ]]; then
         mkdir -p "${TEMP_DIR}/firefly/import"
         cp -a "${HOMELAB_DIR}/data/dev2/firefly/import"/. "${TEMP_DIR}/firefly/import/" 2>/dev/null || true
@@ -118,7 +119,7 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     fi
 
     # 4. Host Environment & Compose Definition
-    log_info "[3/4] Archiving dev2 stack definition and environment secrets..."
+    log_info "[4/4] Archiving dev2 stack definition and environment secrets..."
     [[ -f "${DEV2_ENV}" ]] && cp "${DEV2_ENV}" "${TEMP_DIR}/config/.env"
     [[ -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.yml"
     echo "${TARGET_HOST}" > "${TEMP_DIR}/config/host.txt"
@@ -210,7 +211,7 @@ log_success "Pruned ${PURGED} old backup archive(s)."
 RCLONE_CONF="${HOMELAB_DIR}/data/rclone/rclone.conf"
 if command -v rclone &>/dev/null && [[ -f "${RCLONE_CONF}" ]]; then
     log_info "Syncing encrypted backups to Cloudflare R2 (r2-crypt:)..."
-    if rclone sync "${BACKUP_ROOT}" r2-crypt: --config "${RCLONE_CONF}" --quiet; then
+    if rclone sync "${BACKUP_ROOT}" r2-crypt: --config "${RCLONE_CONF}" --no-update-modtime --fast-list --quiet; then
         log_success "Off-site encrypted sync to Cloudflare R2 complete."
     else
         log_warn "Off-site rclone sync encountered a non-fatal warning."
