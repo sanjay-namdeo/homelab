@@ -1,0 +1,44 @@
+services:
+  firefly_db:
+    image: mariadb:lts
+    container_name: firefly_db
+    restart: unless-stopped
+    environment:
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+      - MYSQL_USER=firefly
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_DATABASE=firefly
+    volumes:
+      - /opt/homelab/data/dev2/firefly/db:/var/lib/mysql
+    # Disable performance schema and limit buffer pool for low-RAM (1GB) host
+    command: --innodb-buffer-pool-size=128M --performance_schema=OFF --max-connections=50
+    networks:
+      - firefly_net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.75'
+
+  firefly_app:
+    image: fireflyiii/core:latest
+    container_name: firefly_app
+    restart: unless-stopped
+    depends_on:
+      - firefly_db
+    env_file: .env
+    volumes:
+      - /opt/homelab/data/dev2/firefly/upload:/var/www/html/storage/upload
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - firefly_net
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: '1.0'
+
+networks:
+  firefly_net:
+    driver: bridge

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Homelab Stack Health & Security Diagnostic Tool
+# Homelab Stack Health & Security Diagnostic Tool (Multi-Host: dev1 & dev2)
 # ==============================================================================
-# Performs end-to-end operational, security, and resource checks.
+# Performs end-to-end operational, security, and resource checks for homelab nodes.
 # ==============================================================================
 
 set -euo pipefail
@@ -22,14 +22,40 @@ warn() { echo -e "  [${YELLOW}⚠ WARN${NC}] $1"; }
 fail() { echo -e "  [${RED}✖ FAIL${NC}] $1"; }
 header() { echo -e "\n${CYAN}=== $1 ===${NC}"; }
 
+# Detect or specify target host
+TARGET_HOST=""
+if [[ $# -gt 0 ]]; then
+    case "$1" in
+        --host|-h)
+            TARGET_HOST="$2"
+            shift 2
+            ;;
+        dev1|dev2)
+            TARGET_HOST="$1"
+            shift 1
+            ;;
+    esac
+fi
+
+if [[ -z "${TARGET_HOST}" ]]; then
+    HOSTNAME_S=$(hostname -s 2>/dev/null || echo "")
+    if [[ "${HOSTNAME_S}" == "dev2" ]] || docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^firefly_"; then
+        TARGET_HOST="dev2"
+    else
+        TARGET_HOST="dev1"
+    fi
+fi
+
 echo "=========================================================="
-echo " Starting Homelab Stack Health & Diagnostic Check"
+echo " Starting Homelab Stack Health & Diagnostic Check (${TARGET_HOST})"
 echo "=========================================================="
 
 # ------------------------------------------------------------------------------
 # 1. Tailscale Status
 # ------------------------------------------------------------------------------
 header "1. Tailscale Network Mesh"
+TS_IP="127.0.0.1"
+TS_FQDN=""
 if command -v tailscale &>/dev/null; then
     TS_STATUS=$(tailscale status --json 2>/dev/null || echo "{}")
     TS_RUNNING=$(echo "${TS_STATUS}" | jq -r '.BackendState // empty')
@@ -47,101 +73,185 @@ else
     fail "Tailscale CLI is not installed"
 fi
 
-# ------------------------------------------------------------------------------
-# 2. Docker Container Services
-# ------------------------------------------------------------------------------
-header "2. Container Service Health"
-CONTAINERS=("vaultwarden" "adguardhome" "caddy" "uptime-kuma")
-for c in "${CONTAINERS[@]}"; do
-    if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
-        STATUS=$(docker inspect --format='{{.State.Status}}' "${c}" 2>/dev/null || echo "unknown")
-        pass "Container '${c}' is running (${STATUS})"
-    else
-        fail "Container '${c}' is NOT running"
-    fi
-done
+if [[ "${TARGET_HOST}" == "dev2" ]]; then
+    # ==========================================================================
+    # DEV2 DIAGNOSTIC SUITE (Firefly III & MariaDB)
+    # ==========================================================================
 
-# ------------------------------------------------------------------------------
-# 3. Functional & Endpoint Verification
-# ------------------------------------------------------------------------------
-header "3. Functional & Endpoint Verification"
+    # 2. Container Service Health
+    header "2. Container Service Health"
+    CONTAINERS=("firefly_app" "firefly_db")
+    for c in "${CONTAINERS[@]}"; do
+        if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
+            STATUS=$(docker inspect --format='{{.State.Status}}' "${c}" 2>/dev/null || echo "unknown")
+            HEALTH=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${c}" 2>/dev/null || echo "none")
+            if [[ "${HEALTH}" != "none" ]]; then
+                pass "Container '${c}' is running (${STATUS}, health: ${HEALTH})"
+            else
+                pass "Container '${c}' is running (${STATUS})"
+            fi
+        else
+            fail "Container '${c}' is NOT running"
+        fi
+    done
 
-# Vaultwarden HTTPS
-TS_FQDN=$(tailscale status --json 2>/dev/null | jq -r '.Self.DNSName // empty' | sed 's/\.$//' || echo "")
-if [[ -n "${TS_FQDN}" ]]; then
-    HTTP_CODE=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}/alive" 2>/dev/null || echo "000")
-    if [[ "${HTTP_CODE}" == "200" ]]; then
-        pass "Vaultwarden HTTPS is responding (https://${TS_FQDN} -> HTTP 200 OK)"
-    else
-        warn "Vaultwarden HTTPS returned status code ${HTTP_CODE}"
-    fi
-fi
-
-# AdGuard Home DNS
-TS_IP=$(tailscale ip -4 2>/dev/null || echo "127.0.0.1")
-if dig @"${TS_IP}" google.com +short +time=2 &>/dev/null; then
-    pass "AdGuard Home DNS is resolving queries via Tailscale IP (${TS_IP}:53)"
-else
-    fail "AdGuard Home DNS resolution failed on ${TS_IP}:53"
-fi
-
-# AdGuard Home Web UI
-AG_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://${TS_IP}:8081/login.html" 2>/dev/null || echo "000")
-if [[ "${AG_HTTP}" == "200" ]]; then
-    pass "AdGuard Home Web UI is reachable (http://${TS_IP}:8081 -> HTTP 200 OK)"
-else
-    warn "AdGuard Home Web UI returned status code ${AG_HTTP}"
-fi
-
-# Uptime Kuma Web UI
-UK_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://${TS_IP}:3001" 2>/dev/null || echo "000")
-if [[ "${UK_HTTP}" == "200" || "${UK_HTTP}" == "302" ]]; then
-    pass "Uptime Kuma Web UI is reachable (http://${TS_IP}:3001 -> HTTP ${UK_HTTP})"
-else
-    warn "Uptime Kuma Web UI returned status code ${UK_HTTP}"
-fi
-
-# Caddy HTTP Redirect
-CADDY_REDIR=$(curl -s -I "http://127.0.0.1/" 2>/dev/null | grep -i "Location:" || echo "")
-if [[ "${CADDY_REDIR}" =~ "https://" ]]; then
-    pass "Caddy HTTP-to-HTTPS redirect is active (${CADDY_REDIR//[$'\t\r\n']/})"
-else
-    warn "Caddy redirect check did not return expected HTTPS location header"
-fi
-
-# ------------------------------------------------------------------------------
-# 4. Security & Network Isolation Checks
-# ------------------------------------------------------------------------------
-header "4. Security & Isolation State"
-
-# WAN Port Blocking Test (ens3 interface)
-LAN_IP=$(ip -4 addr show ens3 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1 || echo "")
-if [[ -n "${LAN_IP}" ]]; then
-    if ! nc -z -w 1 "${LAN_IP}" 8081 2>/dev/null; then
-        pass "Port 8081 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
-    else
-        fail "Port 8081 is accessible on WAN/LAN interface (${LAN_IP})!"
+    # 3. Tailscale Serve Status & Endpoints
+    header "3. Functional & Endpoint Verification"
+    if command -v tailscale &>/dev/null; then
+        SERVE_STATUS=$(tailscale serve status 2>&1 || echo "")
+        if echo "${SERVE_STATUS}" | grep -q "127.0.0.1:8080"; then
+            pass "Tailscale Serve TLS reverse proxy is active (443 -> 127.0.0.1:8080)"
+        else
+            warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8080"
+        fi
     fi
 
-    if ! nc -z -w 1 "${LAN_IP}" 3001 2>/dev/null; then
-        pass "Port 3001 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+    # Firefly HTTP local endpoint
+    FF_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8080/" 2>/dev/null || echo "000")
+    if [[ "${FF_HTTP}" == "200" || "${FF_HTTP}" == "302" ]]; then
+        pass "Firefly III local HTTP endpoint is responding (http://127.0.0.1:8080 -> HTTP ${FF_HTTP})"
     else
-        fail "Port 3001 is accessible on WAN/LAN interface (${LAN_IP})!"
+        warn "Firefly III local endpoint returned status code ${FF_HTTP}"
     fi
 
-    if ! nc -z -w 1 "${LAN_IP}" 53 2>/dev/null; then
-        pass "Port 53 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
-    else
-        fail "Port 53 is accessible on WAN/LAN interface (${LAN_IP})!"
+    # Firefly HTTPS via Tailscale FQDN
+    if [[ -n "${TS_FQDN}" ]]; then
+        FF_TLS=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}/" 2>/dev/null || echo "000")
+        if [[ "${FF_TLS}" == "200" || "${FF_TLS}" == "302" ]]; then
+            pass "Firefly III HTTPS endpoint is responding (https://${TS_FQDN} -> HTTP ${FF_TLS})"
+        else
+            warn "Firefly III HTTPS endpoint returned status code ${FF_TLS}"
+        fi
     fi
-fi
 
-# File permissions check
-VW_PERMS=$(stat -c "%a" "${HOMELAB_DIR}/data/vaultwarden" 2>/dev/null || echo "")
-if [[ "${VW_PERMS}" == "700" ]]; then
-    pass "Vaultwarden data directory permissions are strictly locked (0700)"
+    # MariaDB Database Ping
+    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
+    DB_PASS=""
+    [[ -f "${DEV2_ENV}" ]] && DB_PASS=$(grep '^DB_PASSWORD=' "${DEV2_ENV}" | cut -d= -f2- || echo "")
+    if [[ -n "${DB_PASS}" ]] && docker ps --format '{{.Names}}' | grep -q "^firefly_db$"; then
+        if docker exec firefly_db mariadb-admin ping -u firefly -p"${DB_PASS}" 2>&1 | grep -q "mysqld is alive"; then
+            pass "MariaDB database is healthy and responding to queries (mysqld is alive)"
+        else
+            fail "MariaDB ping failed"
+        fi
+    fi
+
+    # 4. Security & Isolation State
+    header "4. Security & Isolation State"
+    LAN_IP=$(ip -4 addr show ens3 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1 || echo "")
+    if [[ -n "${LAN_IP}" ]]; then
+        if ! nc -z -w 1 "${LAN_IP}" 8080 2>/dev/null; then
+            pass "Port 8080 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+        else
+            fail "Port 8080 is accessible on WAN/LAN interface (${LAN_IP})!"
+        fi
+
+        if ! nc -z -w 1 "${LAN_IP}" 3306 2>/dev/null; then
+            pass "Port 3306 (MariaDB) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+        else
+            fail "Port 3306 is accessible on WAN/LAN interface (${LAN_IP})!"
+        fi
+    fi
+
+    if [[ -f "${DEV2_ENV}" ]]; then
+        ENV_PERMS=$(stat -c "%a" "${DEV2_ENV}" 2>/dev/null || echo "")
+        if [[ "${ENV_PERMS}" == "600" ]]; then
+            pass "dev2 .env secret permissions are strictly locked (0600)"
+        else
+            warn "dev2 .env secret permissions: ${ENV_PERMS} (recommended: 0600)"
+        fi
+    fi
+
 else
-    warn "Vaultwarden data directory permissions: ${VW_PERMS} (recommended: 0700)"
+    # ==========================================================================
+    # DEV1 DIAGNOSTIC SUITE (Vaultwarden, AdGuard, Uptime Kuma, Caddy)
+    # ==========================================================================
+
+    # 2. Container Service Health
+    header "2. Container Service Health"
+    CONTAINERS=("vaultwarden" "adguardhome" "caddy" "uptime-kuma")
+    for c in "${CONTAINERS[@]}"; do
+        if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
+            STATUS=$(docker inspect --format='{{.State.Status}}' "${c}" 2>/dev/null || echo "unknown")
+            pass "Container '${c}' is running (${STATUS})"
+        else
+            fail "Container '${c}' is NOT running"
+        fi
+    done
+
+    # 3. Functional & Endpoint Verification
+    header "3. Functional & Endpoint Verification"
+
+    # Vaultwarden HTTPS
+    if [[ -n "${TS_FQDN}" ]]; then
+        HTTP_CODE=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}/alive" 2>/dev/null || echo "000")
+        if [[ "${HTTP_CODE}" == "200" ]]; then
+            pass "Vaultwarden HTTPS is responding (https://${TS_FQDN} -> HTTP 200 OK)"
+        else
+            warn "Vaultwarden HTTPS returned status code ${HTTP_CODE}"
+        fi
+    fi
+
+    # AdGuard Home DNS
+    if dig @"${TS_IP}" google.com +short +time=2 &>/dev/null; then
+        pass "AdGuard Home DNS is resolving queries via Tailscale IP (${TS_IP}:53)"
+    else
+        fail "AdGuard Home DNS resolution failed on ${TS_IP}:53"
+    fi
+
+    # AdGuard Home Web UI
+    AG_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://${TS_IP}:8081/login.html" 2>/dev/null || echo "000")
+    if [[ "${AG_HTTP}" == "200" ]]; then
+        pass "AdGuard Home Web UI is reachable (http://${TS_IP}:8081 -> HTTP 200 OK)"
+    else
+        warn "AdGuard Home Web UI returned status code ${AG_HTTP}"
+    fi
+
+    # Uptime Kuma Web UI
+    UK_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://${TS_IP}:3001" 2>/dev/null || echo "000")
+    if [[ "${UK_HTTP}" == "200" || "${UK_HTTP}" == "302" ]]; then
+        pass "Uptime Kuma Web UI is reachable (http://${TS_IP}:3001 -> HTTP ${UK_HTTP})"
+    else
+        warn "Uptime Kuma Web UI returned status code ${UK_HTTP}"
+    fi
+
+    # Caddy HTTP Redirect
+    CADDY_REDIR=$(curl -s -I "http://127.0.0.1/" 2>/dev/null | grep -i "Location:" || echo "")
+    if [[ "${CADDY_REDIR}" =~ "https://" ]]; then
+        pass "Caddy HTTP-to-HTTPS redirect is active (${CADDY_REDIR//[$'\t\r\n']/})"
+    else
+        warn "Caddy redirect check did not return expected HTTPS location header"
+    fi
+
+    # 4. Security & Network Isolation Checks
+    header "4. Security & Isolation State"
+    LAN_IP=$(ip -4 addr show ens3 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1 || echo "")
+    if [[ -n "${LAN_IP}" ]]; then
+        if ! nc -z -w 1 "${LAN_IP}" 8081 2>/dev/null; then
+            pass "Port 8081 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+        else
+            fail "Port 8081 is accessible on WAN/LAN interface (${LAN_IP})!"
+        fi
+
+        if ! nc -z -w 1 "${LAN_IP}" 3001 2>/dev/null; then
+            pass "Port 3001 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+        else
+            fail "Port 3001 is accessible on WAN/LAN interface (${LAN_IP})!"
+        fi
+
+        if ! nc -z -w 1 "${LAN_IP}" 53 2>/dev/null; then
+            pass "Port 53 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+        else
+            fail "Port 53 is accessible on WAN/LAN interface (${LAN_IP})!"
+        fi
+    fi
+
+    VW_PERMS=$(stat -c "%a" "${HOMELAB_DIR}/data/vaultwarden" 2>/dev/null || echo "")
+    if [[ "${VW_PERMS}" == "700" ]]; then
+        pass "Vaultwarden data directory permissions are strictly locked (0700)"
+    elif [[ -n "${VW_PERMS}" ]]; then
+        warn "Vaultwarden data directory permissions: ${VW_PERMS} (recommended: 0700)"
+    fi
 fi
 
 # ------------------------------------------------------------------------------
@@ -163,3 +273,4 @@ echo ""
 echo "=========================================================="
 echo -e "${GREEN} Diagnostic Check Complete!${NC}"
 echo "=========================================================="
+

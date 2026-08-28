@@ -524,42 +524,61 @@ sudo bash /opt/homelab/scripts/rollback.sh
 
 ---
 
-## 💾 Backup, Restore & Disaster Recovery
+## 💾 Multi-Host Backup, Restore & Disaster Recovery
 
-All persistent data is stored in [`/opt/homelab/data/`](file:///opt/homelab/data/):
-- `/opt/homelab/data/vaultwarden/`: SQLite database (`db.sqlite3`, `db.sqlite3-wal`), user RSA keys, attachments.
-- `/opt/homelab/data/adguard/conf/`: `AdGuardHome.yaml` configuration, filters, client rules.
-- `/opt/homelab/data/uptime-kuma/`: SQLite monitoring database (`kuma.db`), TLS tracking, monitor configurations.
-- `/opt/homelab/data/caddy/`: TLS certificates and Caddy configuration cache.
-- `/opt/homelab/data/backups/`: Local compressed and permission-locked (`0600`) archives.
+Persistent data is segregated by host:
+- **`dev1` (Core Stack)**:
+  - `/opt/homelab/data/vaultwarden/`: SQLite database (`db.sqlite3`), RSA keys, attachments.
+  - `/opt/homelab/data/adguard/conf/`: `AdGuardHome.yaml` configuration, filters, client rules.
+  - `/opt/homelab/data/uptime-kuma/`: SQLite monitoring database (`kuma.db`), TLS tracking.
+  - `/opt/homelab/data/caddy/`: TLS certificates and Caddy configuration cache.
+- **`dev2` (Finance Hub)**:
+  - `/opt/homelab/data/dev2/firefly/db/`: MariaDB transactional database storage.
+  - `/opt/homelab/data/dev2/firefly/upload/`: Firefly III uploaded invoices, receipts, and documents.
+  - `/opt/homelab/hosts/dev2/.env`: Application encryption key (`APP_KEY`) and database credentials (`DB_PASSWORD`).
+- **All Hosts**:
+  - `/opt/homelab/data/backups/`: Local compressed, timestamped, permission-locked (`0600`) archives (`homelab_backup_<host>_<timestamp>.tar.gz`).
 
 ---
 
-### 1. Automated Local & Cloudflare R2 Off-Site Backup (Recommended)
+### 1. Automated Local & Cloudflare R2 Off-Site Backup
+
+Run the automated backup script on either host (it auto-detects host type):
 ```bash
 sudo bash /opt/homelab/scripts/backup_homelab.sh
 ```
 
-**What the script executes**:
-1. **Live SQLite Snapshot**: Captures a point-in-time database snapshot via Python's native `sqlite3.backup()` API (100% safe from WAL corruption).
-2. **Configuration Packaging**: Archives AdGuard filters, Caddy TLS configurations, and `.env` secrets.
-3. **Local Encryption & Permissions**: Generates a timestamped `.tar.gz` in `/opt/homelab/data/backups/` and restricts permissions to `0600` (`root:root`).
-4. **Local Pruning**: Automatically purges archives older than 14 days.
-5. **Zero-Knowledge Off-Site Sync**: Uploads the archive to **Cloudflare R2 Object Storage** via `rclone` with client-side **AES-256-GCM encryption** (`r2-crypt:`). Both file contents and file names are encrypted before upload.
+**Host-Aware Process Breakdown**:
+- **On `dev1`**:
+  1. **Live SQLite Snapshot**: Captures a point-in-time database snapshot via Python's native `sqlite3.backup()` API (100% safe from WAL corruption).
+  2. **Configuration Packaging**: Archives AdGuard filters, Caddy TLS configurations, Uptime Kuma db, and `.env` secrets.
+- **On `dev2`**:
+  1. **MariaDB Hot Dump**: Performs a non-blocking, atomic database dump of `firefly` via `mariadb-dump --single-transaction --quick` into a valid SQL archive.
+  2. **Receipts & Uploads**: Archives all user-uploaded receipts, invoices, and documents from `data/dev2/firefly/upload`.
+  3. **Encryption Secrets**: Backs up `hosts/dev2/.env` containing the `APP_KEY` necessary to decrypt stored financial data.
+- **On Both Hosts**:
+  1. **Security & Permissions**: Compresses data into `/opt/homelab/data/backups/homelab_backup_<host>_<timestamp>.tar.gz` (`0600` root-only).
+  2. **Local Rotation**: Purges local backups older than 14 days.
+  3. **Zero-Knowledge Off-Site Sync**: Uploads the archive to **Cloudflare R2 Object Storage** via `rclone` with client-side **AES-256-GCM encryption** (`r2-crypt:`).
+
+#### Automating Backups with Cron (Daily at 3:00 AM)
+```bash
+sudo crontab -l 2>/dev/null | { cat; echo "0 3 * * * /bin/bash /opt/homelab/scripts/backup_homelab.sh > /dev/null 2>&1"; } | sudo crontab -
+```
 
 ---
 
 ### 2. Disaster Recovery: Restoring from Cloudflare R2 (If Server is Lost)
 
-If your cloud server terminates or is completely lost, you can restore your entire homelab onto any brand-new Ubuntu server in minutes:
+If a host is terminated or lost, restore in minutes:
 
-#### Step 1: Clone the Homelab Repository
+#### Step 1: Clone Homelab Repository
 ```bash
 sudo git clone git@github.com:sanjay-namdeo/homelab.git /opt/homelab
 cd /opt/homelab
 ```
 
-#### Step 2: Install Rclone & Configure Cloudflare R2 Credentials
+#### Step 2: Configure Cloudflare R2 Credentials
 1. Install rclone:
    ```bash
    sudo apt-get update && sudo apt-get install -y rclone
@@ -586,39 +605,33 @@ cd /opt/homelab
    sudo chmod 600 /opt/homelab/data/rclone/rclone.conf
    ```
 
-#### Step 3: Pull & Decrypt Latest Backup from Cloudflare R2
+#### Step 3: Pull Latest Backup Archive
 ```bash
 # List available encrypted backups
 sudo rclone lsf r2-crypt: --config /opt/homelab/data/rclone/rclone.conf
 
-# Download the latest backup
+# Download latest backup
 sudo mkdir -p /opt/homelab/data/backups
-#### Step 4: Restore Data & Deploy Stack
+sudo rclone copy r2-crypt:<backup_filename>.tar.gz /opt/homelab/data/backups/ --config /opt/homelab/data/rclone/rclone.conf
+```
+
+#### Step 4: Restore Data & Start Stack
 ```bash
-# Run automated restore (extracts configs, database snapshots, and verifies SQLite integrity)
-LATEST_BACKUP=$(ls -t /opt/homelab/data/backups/homelab_backup_*.tar.gz | head -n 1)
+# Run automated restore (auto-detects dev1 or dev2 archive profile and verifies integrity)
+LATEST_BACKUP=$(sudo ls -t /opt/homelab/data/backups/homelab_backup_*.tar.gz | head -n 1)
 sudo bash /opt/homelab/scripts/restore_homelab.sh "${LATEST_BACKUP}"
 
-# Run automated deployment (provisions Tailscale, system configs, and launches containers)
+# Run automated deployment
 sudo bash /opt/homelab/scripts/deploy_stack.sh
 ```
 
 ---
 
 ### 3. Dry-Run / Isolated Disaster Recovery Validation
-You can safely test and validate your backup archive at any time in an isolated target directory without modifying running services:
+Test and validate your backup archive at any time in an isolated target directory without modifying running services:
 ```bash
 sudo bash /opt/homelab/scripts/restore_homelab.sh /opt/homelab/data/backups/<backup_file>.tar.gz --target-dir /tmp/dr_test
 ```
-
-
----
-
-### 3. Manual Local Backup Archive
-```bash
-sudo tar -czvf /opt/homelab/data/backups/homelab-backup-$(date +%F).tar.gz -C /opt homelab/data homelab/.env homelab/Caddyfile homelab/docker-compose.yml
-```
-
 
 ---
 
@@ -628,4 +641,5 @@ To completely uninstall all services, purge Docker and Tailscale, restore system
 ```bash
 sudo bash /opt/homelab/scripts/rollback.sh
 ```
+
 

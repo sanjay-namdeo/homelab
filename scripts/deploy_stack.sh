@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Homelab Stack Deployment & Automation Script
+# Homelab Stack Deployment & Automation Script (Multi-Host: dev1 & dev2)
 # ==============================================================================
-# Sets up DNS stub listeners, installs Docker & Tailscale (if missing),
-# detects the Tailscale MagicDNS domain, configures Caddy TLS, and starts services.
+# Sets up host prerequisites, installs Docker & Tailscale (if missing),
+# provisions stack secrets & storage, and launches container services.
 # ==============================================================================
 
 set -euo pipefail
@@ -12,6 +12,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
@@ -27,31 +28,38 @@ fi
 HOMELAB_DIR="/opt/homelab"
 cd "${HOMELAB_DIR}"
 
-echo "=========================================================="
-echo " Starting Homelab Stack Automated Deployment"
-echo "=========================================================="
-
-# ------------------------------------------------------------------------------
-# 1. Configure systemd-resolved for Port 53 coexistence
-# ------------------------------------------------------------------------------
-log_info "[1/7] Configuring systemd-resolved DNSStubListener=no for AdGuard..."
-mkdir -p /etc/systemd/resolved.conf.d/
-cat > /etc/systemd/resolved.conf.d/adguard.conf << 'EOF'
-[Resolve]
-DNS=1.1.1.1 8.8.8.8
-DNSStubListener=no
-EOF
-
-if [ -f /run/systemd/resolve/resolv.conf ]; then
-    ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+# Detect or specify target host
+TARGET_HOST=""
+if [[ $# -gt 0 ]]; then
+    case "$1" in
+        --host|-h)
+            TARGET_HOST="$2"
+            shift 2
+            ;;
+        dev1|dev2)
+            TARGET_HOST="$1"
+            shift 1
+            ;;
+    esac
 fi
-systemctl restart systemd-resolved || true
-log_success "systemd-resolved configured."
+
+if [[ -z "${TARGET_HOST}" ]]; then
+    HOSTNAME_S=$(hostname -s 2>/dev/null || echo "")
+    if [[ "${HOSTNAME_S}" == "dev2" ]]; then
+        TARGET_HOST="dev2"
+    else
+        TARGET_HOST="dev1"
+    fi
+fi
+
+echo "=========================================================="
+echo " Starting Homelab Stack Automated Deployment (${TARGET_HOST})"
+echo "=========================================================="
 
 # ------------------------------------------------------------------------------
-# 2. Enable Kernel IP Forwarding (for Tailscale Exit Node)
+# 1. Host Tuning & Kernel Forwarding
 # ------------------------------------------------------------------------------
-log_info "[2/7] Ensuring Kernel IP Forwarding is active..."
+log_info "[1/6] Applying Kernel Sysctl optimizations..."
 cat > /etc/sysctl.d/99-homelab.conf << 'EOF'
 net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1
@@ -59,13 +67,33 @@ vm.swappiness = 15
 vm.vfs_cache_pressure = 50
 EOF
 sysctl --system >/dev/null 2>&1 || true
-log_success "IP Forwarding enabled."
+log_success "Sysctl optimizations applied."
+
+# ------------------------------------------------------------------------------
+# 2. Host-specific DNS adjustments
+# ------------------------------------------------------------------------------
+if [[ "${TARGET_HOST}" == "dev1" ]]; then
+    log_info "[2/6] Configuring systemd-resolved DNSStubListener=no for AdGuard..."
+    mkdir -p /etc/systemd/resolved.conf.d/
+    cat > /etc/systemd/resolved.conf.d/adguard.conf << 'EOF'
+[Resolve]
+DNS=1.1.1.1 8.8.8.8
+DNSStubListener=no
+EOF
+    if [ -f /run/systemd/resolve/resolv.conf ]; then
+        ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+    fi
+    systemctl restart systemd-resolved || true
+    log_success "systemd-resolved configured for port 53."
+else
+    log_info "[2/6] Skipping Port 53 DNS stub listener bypass (not required for dev2)."
+fi
 
 # ------------------------------------------------------------------------------
 # 3. Install Docker Engine & Compose (if not present)
 # ------------------------------------------------------------------------------
 if ! command -v docker &>/dev/null; then
-    log_info "[3/7] Installing Docker Engine & Compose..."
+    log_info "[3/6] Installing Docker Engine & Compose..."
     apt-get update -y
     apt-get install -y ca-certificates curl gnupg
     install -m 0755 -d /etc/apt/keyrings
@@ -77,14 +105,14 @@ if ! command -v docker &>/dev/null; then
     systemctl enable --now docker
     log_success "Docker Engine installed."
 else
-    log_info "[3/7] Docker Engine is already installed."
+    log_info "[3/6] Docker Engine is already installed."
 fi
 
 # ------------------------------------------------------------------------------
 # 4. Install & Check Tailscale
 # ------------------------------------------------------------------------------
 if ! command -v tailscale &>/dev/null; then
-    log_info "[4/7] Installing Tailscale..."
+    log_info "[4/6] Installing Tailscale..."
     curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/$(. /etc/os-release && echo "$VERSION_CODENAME").noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null
     curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/$(. /etc/os-release && echo "$VERSION_CODENAME").tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list
     apt-get update -y
@@ -92,65 +120,119 @@ if ! command -v tailscale &>/dev/null; then
     systemctl enable --now tailscaled
 fi
 
-# Check Tailscale auth status
 log_info "Checking Tailscale connection..."
 if ! tailscale status &>/dev/null; then
     log_warn "Tailscale is not authenticated. Starting tailscale up..."
-    tailscale up --advertise-exit-node --ssh
+    tailscale up --ssh
 fi
 
 TS_IP=$(tailscale ip -4 2>/dev/null || echo "")
 TS_FQDN=$(tailscale status --json 2>/dev/null | jq -r '.Self.DNSName' 2>/dev/null | sed 's/\.$//' || echo "")
-
 log_success "Tailscale connected: IP=${TS_IP:-unknown}, FQDN=${TS_FQDN:-unknown}"
 
 # ------------------------------------------------------------------------------
-# 5. Create Persistent Data Directories & Environment (.env)
+# 5. Prepare Data Directories & Environment Secrets
 # ------------------------------------------------------------------------------
-log_info "[5/7] Preparing directory structure and .env..."
-mkdir -p "${HOMELAB_DIR}/data/vaultwarden"
-mkdir -p "${HOMELAB_DIR}/data/adguard/work"
-mkdir -p "${HOMELAB_DIR}/data/adguard/conf"
-mkdir -p "${HOMELAB_DIR}/data/caddy/data"
-mkdir -p "${HOMELAB_DIR}/data/caddy/config"
+log_info "[5/6] Preparing data directories and secrets..."
 
-if [ ! -f "${HOMELAB_DIR}/.env" ]; then
-    if [ -f "${HOMELAB_DIR}/.env.example" ]; then
-        cp "${HOMELAB_DIR}/.env.example" "${HOMELAB_DIR}/.env"
-    else
-        cat > "${HOMELAB_DIR}/.env" << 'EOF'
+if [[ "${TARGET_HOST}" == "dev2" ]]; then
+    mkdir -p "${HOMELAB_DIR}/data/dev2/firefly/db"
+    mkdir -p "${HOMELAB_DIR}/data/dev2/firefly/upload"
+    mkdir -p "${HOMELAB_DIR}/hosts/dev2"
+
+    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
+    if [[ ! -f "${DEV2_ENV}" ]]; then
+        log_info "Generating secure secrets for dev2 .env..."
+        APP_KEY=$(openssl rand -base64 32 | tr -d '\n')
+        DB_PASS=$(openssl rand -hex 16)
+        cat > "${DEV2_ENV}" << EOF
+# Firefly III & MariaDB Configuration (dev2)
+APP_ENV=local
+APP_DEBUG=false
+APP_KEY=base64:${APP_KEY}
+APP_URL=https://${TS_FQDN}
+TRUSTED_PROXIES=**
+TZ=Asia/Kolkata
+
+DB_CONNECTION=mysql
+DB_HOST=firefly_db
+DB_PORT=3306
+DB_DATABASE=firefly
+DB_USERNAME=firefly
+DB_PASSWORD=${DB_PASS}
+
+SITE_OWNER=homelab@local
+AUTHENTICATION_GUARD=web
+SEND_REGISTRATION_MAIL=false
+SEND_ERROR_MESSAGE=false
+STATIC_CRON_TOKEN=$(openssl rand -hex 16)
+EOF
+        chmod 600 "${DEV2_ENV}"
+        log_success "Generated ${DEV2_ENV} (chmod 600)."
+    fi
+
+    # 6. Launch dev2 stack & configure Tailscale Serve
+    log_info "[6/6] Launching dev2 Docker stack..."
+    docker compose -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" up -d
+    log_success "dev2 Docker stack started."
+
+    log_info "Configuring Tailscale Serve for HTTPS termination..."
+    tailscale serve --bg --https=443 http://127.0.0.1:8080 2>/dev/null || true
+    log_success "Tailscale Serve configured (https://${TS_FQDN} -> http://127.0.0.1:8080)."
+
+    echo ""
+    echo "=========================================================="
+    echo -e "${GREEN} dev2 Homelab Stack Deployed Successfully!${NC}"
+    echo "=========================================================="
+    echo " - Firefly III:  https://${TS_FQDN:-<your-tailscale-fqdn>}"
+    echo "=========================================================="
+
+else
+    mkdir -p "${HOMELAB_DIR}/data/vaultwarden"
+    mkdir -p "${HOMELAB_DIR}/data/adguard/work"
+    mkdir -p "${HOMELAB_DIR}/data/adguard/conf"
+    mkdir -p "${HOMELAB_DIR}/data/caddy/data"
+    mkdir -p "${HOMELAB_DIR}/data/caddy/config"
+    mkdir -p "${HOMELAB_DIR}/data/uptime-kuma"
+
+    if [ ! -f "${HOMELAB_DIR}/.env" ]; then
+        if [ -f "${HOMELAB_DIR}/.env.example" ]; then
+            cp "${HOMELAB_DIR}/.env.example" "${HOMELAB_DIR}/.env"
+        elif [ -f "${HOMELAB_DIR}/hosts/dev1/.env.example" ]; then
+            cp "${HOMELAB_DIR}/hosts/dev1/.env.example" "${HOMELAB_DIR}/.env"
+        else
+            cat > "${HOMELAB_DIR}/.env" << 'EOF'
 TZ=UTC
 SIGNUPS_ALLOWED=true
 EOF
+        fi
+        chmod 600 "${HOMELAB_DIR}/.env"
     fi
-    chmod 600 "${HOMELAB_DIR}/.env"
-fi
 
-# Dynamically update Tailscale network values in .env
-TS_HOSTNAME=$(echo "${TS_FQDN}" | cut -d. -f1)
-TS_TAILNET=$(echo "${TS_FQDN}" | cut -d. -f2-)
+    # Copy to hosts/dev1/.env for consistency
+    mkdir -p "${HOMELAB_DIR}/hosts/dev1"
+    [[ ! -f "${HOMELAB_DIR}/hosts/dev1/.env" ]] && cp "${HOMELAB_DIR}/.env" "${HOMELAB_DIR}/hosts/dev1/.env" && chmod 600 "${HOMELAB_DIR}/hosts/dev1/.env"
 
-update_env_var() {
-    local key="$1"
-    local val="$2"
-    if grep -q "^${key}=" "${HOMELAB_DIR}/.env"; then
-        sed -i "s|^${key}=.*|${key}=${val}|" "${HOMELAB_DIR}/.env"
-    else
-        echo "${key}=${val}" >> "${HOMELAB_DIR}/.env"
-    fi
-}
+    TS_HOSTNAME=$(echo "${TS_FQDN}" | cut -d. -f1)
+    TS_TAILNET=$(echo "${TS_FQDN}" | cut -d. -f2-)
 
-[[ -n "${TS_IP}" ]] && update_env_var "TAILSCALE_IP" "${TS_IP}"
-[[ -n "${TS_HOSTNAME}" ]] && update_env_var "TAILSCALE_HOSTNAME" "${TS_HOSTNAME}"
-[[ -n "${TS_TAILNET}" ]] && update_env_var "TAILNET_NAME" "${TS_TAILNET}"
-[[ -n "${TS_FQDN}" ]] && update_env_var "TAILSCALE_FQDN" "${TS_FQDN}"
+    update_env_var() {
+        local key="$1"
+        local val="$2"
+        if grep -q "^${key}=" "${HOMELAB_DIR}/.env"; then
+            sed -i "s|^${key}=.*|${key}=${val}|" "${HOMELAB_DIR}/.env"
+        else
+            echo "${key}=${val}" >> "${HOMELAB_DIR}/.env"
+        fi
+    }
 
-# ------------------------------------------------------------------------------
-# 6. Ensure Caddyfile is Configured
-# ------------------------------------------------------------------------------
-log_info "[6/7] Ensuring Caddyfile is present..."
-if [ ! -f "${HOMELAB_DIR}/Caddyfile" ]; then
-    cat > "${HOMELAB_DIR}/Caddyfile" << 'EOF'
+    [[ -n "${TS_IP}" ]] && update_env_var "TAILSCALE_IP" "${TS_IP}"
+    [[ -n "${TS_HOSTNAME}" ]] && update_env_var "TAILSCALE_HOSTNAME" "${TS_HOSTNAME}"
+    [[ -n "${TS_TAILNET}" ]] && update_env_var "TAILNET_NAME" "${TS_TAILNET}"
+    [[ -n "${TS_FQDN}" ]] && update_env_var "TAILSCALE_FQDN" "${TS_FQDN}"
+
+    if [ ! -f "${HOMELAB_DIR}/Caddyfile" ]; then
+        cat > "${HOMELAB_DIR}/Caddyfile" << 'EOF'
 {
     admin off
 }
@@ -168,22 +250,20 @@ if [ ! -f "${HOMELAB_DIR}/Caddyfile" ]; then
     redir https://{$TAILSCALE_FQDN}{uri} permanent
 }
 EOF
+    fi
+
+    # 6. Launch dev1 stack
+    log_info "[6/6] Launching dev1 Docker container stack..."
+    docker compose -f "${HOMELAB_DIR}/docker-compose.yml" up -d
+    log_success "Docker containers started successfully!"
+
+    echo ""
+    echo "=========================================================="
+    echo -e "${GREEN} dev1 Homelab Stack Deployed Successfully!${NC}"
+    echo "=========================================================="
+    echo " - Vaultwarden:   https://${TS_FQDN:-<your-tailscale-fqdn>}"
+    echo " - AdGuard Home:  http://${TS_IP:-<your-tailscale-ip>}:8081"
+    echo " - Uptime Kuma:   http://${TS_IP:-<your-tailscale-ip>}:3001"
+    echo "=========================================================="
 fi
-log_success "Caddyfile configured."
 
-# ------------------------------------------------------------------------------
-# 7. Start Docker Stack
-# ------------------------------------------------------------------------------
-log_info "[7/7] Launching Docker container stack..."
-docker compose -f "${HOMELAB_DIR}/docker-compose.yml" up -d
-log_success "Docker containers started successfully!"
-
-echo ""
-echo "=========================================================="
-echo -e "${GREEN} Homelab Stack Deployed Successfully!${NC}"
-echo "=========================================================="
-echo ""
-echo "Access Information (from any device connected to Tailscale):"
-echo " - Vaultwarden:   https://${TS_FQDN:-<your-tailscale-fqdn>}"
-echo " - AdGuard Home:  http://${TS_IP:-<your-tailscale-ip>}:8081 (Initial Setup: http://${TS_IP:-<tailscale-ip>}:3000)"
-echo ""
