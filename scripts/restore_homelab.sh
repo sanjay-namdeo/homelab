@@ -123,7 +123,17 @@ if [[ "${IS_DEV2}" == true ]]; then
         log_success "Firefly III import directory restored."
     fi
 
-    # 3. Restore / Import MariaDB Database
+    # 3. Restore Obsidian Markdown Vault & Web Data
+    if [[ -d "${TEMP_EXTRACT}/obsidian" ]]; then
+        log_info "Restoring Obsidian Markdown Vault and Web configuration..."
+        mkdir -p "${TARGET_DIR}/data/dev2/obsidian"
+        cp -a "${TEMP_EXTRACT}/obsidian"/. "${TARGET_DIR}/data/dev2/obsidian/" 2>/dev/null || true
+        chown -R 82:82 "${TARGET_DIR}/data/dev2/obsidian" 2>/dev/null || true
+        chmod -R 775 "${TARGET_DIR}/data/dev2/obsidian" 2>/dev/null || true
+        log_success "Obsidian Markdown Vault restored."
+    fi
+
+    # 4. Restore / Import MariaDB Database
     log_info "[4/4] Processing MariaDB database snapshot..."
     if [[ -f "${TEMP_EXTRACT}/mariadb/firefly.sql" ]]; then
         RESTORE_SQL="${TARGET_DIR}/data/dev2/firefly/restored_firefly_$(date +%Y%m%d_%H%M%S).sql"

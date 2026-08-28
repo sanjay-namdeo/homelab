@@ -22,10 +22,12 @@ graph TD
         UK["📊 Uptime Kuma (:3001 Web)"]
     end
 
-    subgraph HostDev2 ["🖥️ Host: dev2 (Finance Hub)"]
-        TS_Serve["⚡ Tailscale Serve (:443 / :8443 TLS)"]
+    subgraph HostDev2 ["🖥️ Host: dev2 (Finance & Obsidian Knowledge Hub)"]
+        TS_Serve["⚡ Tailscale Serve (:443, :8443, :8082, :8083 TLS)"]
         FF["💰 Firefly III Core (:8080)"]
         FDI["📥 Data Importer (:8081)"]
+        ObsDAV["📁 Obsidian WebDAV Sync (:8082)"]
+        ObsWeb["📝 Obsidian Flatnotes Web (:8083)"]
         DB[("🗄️ MariaDB Database")]
     end
 
@@ -36,10 +38,12 @@ graph TD
     Caddy -->|HTTPS :3001| UK
     TS1 -.->|DNS Port 53| AG
 
-    Client -->|HTTPS :443 / :8443| TS2
+    Client -->|HTTPS :443 / :8443 / :8082 / :8083| TS2
     TS2 --> TS_Serve
     TS_Serve -->|:443| FF
     TS_Serve -->|:8443| FDI
+    TS_Serve -->|:8082| ObsDAV
+    TS_Serve -->|:8083| ObsWeb
     FF --> DB
     FDI --> FF
 ```
@@ -122,9 +126,13 @@ docker compose up -d
 # Enable Tailscale Serve (HTTPS termination)
 sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
 sudo tailscale serve --bg --https=8443 http://127.0.0.1:8081
+sudo tailscale serve --bg --https=8082 http://127.0.0.1:8082
+sudo tailscale serve --bg --https=8083 http://127.0.0.1:8083
 ```
 - **Firefly III Core**: `https://dev2.<tailnet>.ts.net`
 - **Firefly Data Importer**: `https://dev2.<tailnet>.ts.net:8443`
+- **Obsidian WebDAV Sync**: `https://dev2.<tailnet>.ts.net:8082/data/`
+- **Obsidian Flatnotes Web**: `https://dev2.<tailnet>.ts.net:8083`
 
 ---
 
@@ -145,6 +153,8 @@ From any device (laptop, phone) connected to your Tailscale network:
 | **dev1** | **Uptime Kuma** | `https://dev1.<tailnet>.ts.net:3001` | Create admin account & configure alert notifications. |
 | **dev2** | **Firefly III Core** | `https://dev2.<tailnet>.ts.net` | Set up initial financial accounts and budgets. |
 | **dev2** | **Firefly Data Importer** | `https://dev2.<tailnet>.ts.net:8443` | Enter Personal Access Token & import bank statements. |
+| **dev2** | **Obsidian WebDAV** | `https://dev2.<tailnet>.ts.net:8082/data/` | Configure *Remotely Save* plugin in Obsidian Desktop / Mobile. |
+| **dev2** | **Obsidian Web Editor** | `https://dev2.<tailnet>.ts.net:8083` | Log in with `obsidian` to view and edit notes in browser. |
 
 ---
 

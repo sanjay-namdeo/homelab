@@ -58,6 +58,53 @@ services:
           memory: 256M
           cpus: '0.75'
 
+  obsidian_webdav:
+    image: bytemark/webdav:latest
+    container_name: obsidian_webdav
+    restart: unless-stopped
+    environment:
+      - AUTH_TYPE=Basic
+      - USERNAME=${WEBDAV_USERNAME:-obsidian}
+      - PASSWORD=${WEBDAV_PASSWORD}
+      - LOCATION=/data
+    volumes:
+      - /opt/homelab/data/dev2/obsidian/vault:/var/lib/dav/data
+    ports:
+      - "127.0.0.1:8082:80"
+    networks:
+      - firefly_net
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.50'
+
+  obsidian_web:
+    image: dullage/flatnotes:latest
+    container_name: obsidian_web
+    restart: unless-stopped
+    environment:
+      - PUID=82
+      - PGID=82
+      - FLATNOTES_PATH=/data
+      - FLATNOTES_SITE_TITLE=Obsidian Vault
+      - FLATNOTES_AUTH_TYPE=${FLATNOTES_AUTH_TYPE:-password}
+      - FLATNOTES_USERNAME=${FLATNOTES_USERNAME:-obsidian}
+      - FLATNOTES_PASSWORD=${FLATNOTES_PASSWORD}
+      - FLATNOTES_SECRET_KEY=${FLATNOTES_SECRET_KEY}
+    volumes:
+      - /opt/homelab/data/dev2/obsidian/vault:/data
+      - /opt/homelab/data/dev2/obsidian/flatnotes_data:/app/data
+    ports:
+      - "127.0.0.1:8083:8080"
+    networks:
+      - firefly_net
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.50'
+
 networks:
   firefly_net:
     driver: bridge

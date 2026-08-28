@@ -80,7 +80,7 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
 
     # 2. Container Service Health
     header "2. Container Service Health"
-    CONTAINERS=("firefly_app" "firefly_db" "firefly_importer")
+    CONTAINERS=("firefly_app" "firefly_db" "firefly_importer" "obsidian_webdav" "obsidian_web")
     for c in "${CONTAINERS[@]}"; do
         if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
             STATUS=$(docker inspect --format='{{.State.Status}}' "${c}" 2>/dev/null || echo "unknown")
@@ -110,6 +110,18 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         else
             warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8081"
         fi
+
+        if echo "${SERVE_STATUS}" | grep -q "127.0.0.1:8082"; then
+            pass "Tailscale Serve TLS reverse proxy is active (8082 -> 127.0.0.1:8082 WebDAV)"
+        else
+            warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8082"
+        fi
+
+        if echo "${SERVE_STATUS}" | grep -q "127.0.0.1:8083"; then
+            pass "Tailscale Serve TLS reverse proxy is active (8083 -> 127.0.0.1:8083 Flatnotes)"
+        else
+            warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8083"
+        fi
     fi
 
     # Firefly HTTP local endpoint
@@ -128,7 +140,28 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         warn "Firefly Data Importer local endpoint returned status code ${FF_IMP_HTTP}"
     fi
 
-    # Firefly HTTPS via Tailscale FQDN
+    # Obsidian WebDAV local endpoint
+    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
+    DAV_USER=""
+    DAV_PASS=""
+    [[ -f "${DEV2_ENV}" ]] && DAV_USER=$(grep '^WEBDAV_USERNAME=' "${DEV2_ENV}" | cut -d= -f2- || echo "obsidian")
+    [[ -f "${DEV2_ENV}" ]] && DAV_PASS=$(grep '^WEBDAV_PASSWORD=' "${DEV2_ENV}" | cut -d= -f2- || echo "")
+    DAV_HTTP=$(curl -s -u "${DAV_USER}:${DAV_PASS}" -o /dev/null -w "%{http_code}" "http://127.0.0.1:8082/data/" 2>/dev/null || echo "000")
+    if [[ "${DAV_HTTP}" == "200" || "${DAV_HTTP}" == "207" || "${DAV_HTTP}" == "301" ]]; then
+        pass "Obsidian WebDAV local HTTP endpoint is responding (http://127.0.0.1:8082/data/ -> HTTP ${DAV_HTTP})"
+    else
+        warn "Obsidian WebDAV local endpoint returned status code ${DAV_HTTP}"
+    fi
+
+    # Obsidian Flatnotes local endpoint
+    FLAT_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8083/" 2>/dev/null || echo "000")
+    if [[ "${FLAT_HTTP}" == "200" || "${FLAT_HTTP}" == "302" ]]; then
+        pass "Obsidian Flatnotes Web UI local HTTP endpoint is responding (http://127.0.0.1:8083/ -> HTTP ${FLAT_HTTP})"
+    else
+        warn "Obsidian Flatnotes Web UI local endpoint returned status code ${FLAT_HTTP}"
+    fi
+
+    # HTTPS via Tailscale FQDN
     if [[ -n "${TS_FQDN}" ]]; then
         FF_TLS=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}/" 2>/dev/null || echo "000")
         if [[ "${FF_TLS}" == "200" || "${FF_TLS}" == "302" ]]; then
@@ -142,6 +175,20 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
             pass "Firefly Data Importer HTTPS endpoint is responding (https://${TS_FQDN}:8443 -> HTTP ${FF_IMP_TLS})"
         else
             warn "Firefly Data Importer HTTPS endpoint returned status code ${FF_IMP_TLS}"
+        fi
+
+        DAV_TLS=$(curl -s -k -u "${DAV_USER}:${DAV_PASS}" -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8082/data/" 2>/dev/null || echo "000")
+        if [[ "${DAV_TLS}" == "200" || "${DAV_TLS}" == "207" || "${DAV_TLS}" == "301" ]]; then
+            pass "Obsidian WebDAV HTTPS endpoint is responding (https://${TS_FQDN}:8082/data/ -> HTTP ${DAV_TLS})"
+        else
+            warn "Obsidian WebDAV HTTPS endpoint returned status code ${DAV_TLS}"
+        fi
+
+        FLAT_TLS=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8083/" 2>/dev/null || echo "000")
+        if [[ "${FLAT_TLS}" == "200" || "${FLAT_TLS}" == "302" ]]; then
+            pass "Obsidian Flatnotes Web UI HTTPS endpoint is responding (https://${TS_FQDN}:8083/ -> HTTP ${FLAT_TLS})"
+        else
+            warn "Obsidian Flatnotes Web UI HTTPS endpoint returned status code ${FLAT_TLS}"
         fi
     fi
 
@@ -171,6 +218,18 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
             pass "Port 8081 (Data Importer) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
         else
             fail "Port 8081 is accessible on WAN/LAN interface (${LAN_IP})!"
+        fi
+
+        if ! nc -z -w 1 "${LAN_IP}" 8082 2>/dev/null; then
+            pass "Port 8082 (Obsidian WebDAV) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+        else
+            fail "Port 8082 is accessible on WAN/LAN interface (${LAN_IP})!"
+        fi
+
+        if ! nc -z -w 1 "${LAN_IP}" 8083 2>/dev/null; then
+            pass "Port 8083 (Obsidian Flatnotes Web UI) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+        else
+            fail "Port 8083 is accessible on WAN/LAN interface (${LAN_IP})!"
         fi
 
         if ! nc -z -w 1 "${LAN_IP}" 3306 2>/dev/null; then
