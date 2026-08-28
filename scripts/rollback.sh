@@ -9,9 +9,11 @@ echo " Starting Full Homelab Teardown & Reversion..."
 echo "============================================================"
 
 # 1. Stop and remove all running containers and networks
-if command -v docker &>/dev/null && [ -f /opt/homelab/docker-compose.yml ]; then
+if command -v docker &>/dev/null; then
     echo "[1/6] Stopping and tearing down Docker containers & volumes..."
-    docker compose -f /opt/homelab/docker-compose.yml down -v --remove-orphans || true
+    [ -f /opt/homelab/docker-compose.yml ] && docker compose -f /opt/homelab/docker-compose.yml down -v --remove-orphans || true
+    [ -f /opt/homelab/hosts/dev1/docker-compose.yml ] && docker compose -f /opt/homelab/hosts/dev1/docker-compose.yml down -v --remove-orphans || true
+    [ -f /opt/homelab/hosts/dev2/docker-compose.yml ] && docker compose -f /opt/homelab/hosts/dev2/docker-compose.yml down -v --remove-orphans || true
 fi
 
 # 2. Disconnect and remove Tailscale

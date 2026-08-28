@@ -1,0 +1,98 @@
+services:
+  vaultwarden:
+    image: vaultwarden/server:alpine
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      - WEBSOCKET_ENABLED=true
+      - SIGNUPS_ALLOWED=${SIGNUPS_ALLOWED:-false}
+      - INVITATIONS_ALLOWED=false
+      - LOG_FILE=/data/vaultwarden.log
+      - EXTENDED_LOGGING=true
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURITY=${SMTP_SECURITY:-starttls}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Vaultwarden}
+      - SMTP_TIMEOUT=${SMTP_TIMEOUT:-15}
+      - SMTP_AUTH_MECHANISM=${SMTP_AUTH_MECHANISM:-Auto}
+      - SMTP_ACCEPT_INVALID_CERTS=false
+      - SMTP_ACCEPT_INVALID_HOSTNAMES=false
+    volumes:
+      - /opt/homelab/data/vaultwarden:/data
+    networks:
+      - homelab_net
+    ports:
+      - "127.0.0.1:8080:80"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.75'
+
+  adguardhome:
+    image: adguard/adguardhome:latest
+    container_name: adguardhome
+    restart: unless-stopped
+    ports:
+      - "${TAILSCALE_IP:-127.0.0.1}:53:53/tcp"
+      - "${TAILSCALE_IP:-127.0.0.1}:53:53/udp"
+      - "127.0.0.1:53:53/tcp"
+      - "127.0.0.1:53:53/udp"
+    volumes:
+      - /opt/homelab/data/adguard/work:/opt/adguardhome/work
+      - /opt/homelab/data/adguard/conf:/opt/adguardhome/conf
+    networks:
+      - homelab_net
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.75'
+
+  caddy:
+    image: caddy:alpine
+    container_name: caddy
+    restart: unless-stopped
+    environment:
+      - TAILSCALE_FQDN=${TAILSCALE_FQDN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "${TAILSCALE_IP:-127.0.0.1}:8081:8081"
+      - "127.0.0.1:8081:8081"
+      - "${TAILSCALE_IP:-127.0.0.1}:3001:3001"
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - /opt/homelab/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/homelab/data/caddy/data:/data
+      - /opt/homelab/data/caddy/config:/config
+      - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock:ro
+    networks:
+      - homelab_net
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.50'
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - /opt/homelab/data/uptime-kuma:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - homelab_net
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.50'
+
+networks:
+  homelab_net:
+    driver: bridge

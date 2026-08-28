@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Homelab Automated Snapshot & Backup Script
+# Homelab Automated Snapshot & Backup Script (Multi-Host: dev1 & dev2)
 # ==============================================================================
 # Performs consistent, non-blocking point-in-time backups:
-#  1. SQLite online hot-backup for Vaultwarden
-#  2. Configuration snapshot for AdGuard Home (AdGuardHome.yaml & filters)
-#  3. Caddy TLS certificates and configuration state
-#  4. Environment (.env) and Docker Compose definitions
-#  5. Compresses into a timestamped, permission-locked (0600) archive
-#  6. Automatic retention cleanup (default: 14 days)
+#  - dev1: SQLite online hot-backup (Vaultwarden, Uptime Kuma), AdGuard conf,
+#          Caddy TLS state, environment & compose definitions.
+#  - dev2: MariaDB live atomic dump (Firefly III), uploaded receipts/documents,
+#          environment & compose definitions.
+#  - Compresses into a timestamped, permission-locked (0600) archive
+#  - Automatic retention cleanup (default: 14 days)
+#  - Off-site Cloudflare R2 encrypted sync via rclone (if configured)
 # ==============================================================================
 
 set -euo pipefail
@@ -18,12 +19,12 @@ BACKUP_ROOT="${HOMELAB_DIR}/data/backups"
 RETENTION_DAYS=14
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 TEMP_DIR="/tmp/homelab_backup_${TIMESTAMP}"
-ARCHIVE_NAME="homelab_backup_${TIMESTAMP}.tar.gz"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
@@ -36,22 +37,96 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# Detect or specify target host
+TARGET_HOST=""
+if [[ $# -gt 0 ]]; then
+    case "$1" in
+        --host|-h)
+            TARGET_HOST="$2"
+            shift 2
+            ;;
+        dev1|dev2)
+            TARGET_HOST="$1"
+            shift 1
+            ;;
+    esac
+fi
+
+if [[ -z "${TARGET_HOST}" ]]; then
+    HOSTNAME_S=$(hostname -s 2>/dev/null || echo "")
+    if [[ "${HOSTNAME_S}" == "dev2" ]] || docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^firefly_"; then
+        TARGET_HOST="dev2"
+    else
+        TARGET_HOST="dev1"
+    fi
+fi
+
+ARCHIVE_NAME="homelab_backup_${TARGET_HOST}_${TIMESTAMP}.tar.gz"
+
 echo "=========================================================="
-echo " Starting Homelab Stack Automated Backup"
+echo " Starting Homelab Stack Automated Backup (${TARGET_HOST})"
 echo "=========================================================="
 
 mkdir -p "${BACKUP_ROOT}"
 chmod 700 "${BACKUP_ROOT}"
-mkdir -p "${TEMP_DIR}/vaultwarden" "${TEMP_DIR}/adguard" "${TEMP_DIR}/caddy" "${TEMP_DIR}/config"
+mkdir -p "${TEMP_DIR}"
 
-# ------------------------------------------------------------------------------
-# 1. Vaultwarden Point-in-Time SQLite Backup
-# ------------------------------------------------------------------------------
-log_info "[1/6] Creating live point-in-time SQLite snapshot of Vaultwarden..."
-VW_DB="${HOMELAB_DIR}/data/vaultwarden/db.sqlite3"
+if [[ "${TARGET_HOST}" == "dev2" ]]; then
+    # --------------------------------------------------------------------------
+    # DEV2 BACKUP: Firefly III & MariaDB
+    # --------------------------------------------------------------------------
+    mkdir -p "${TEMP_DIR}/mariadb" "${TEMP_DIR}/firefly/upload" "${TEMP_DIR}/config"
 
-if [[ -f "${VW_DB}" ]]; then
-    python3 -c "
+    # 1. MariaDB Hot Dump
+    log_info "[1/4] Performing non-blocking MariaDB hot dump of 'firefly' database..."
+    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
+    DB_PASS=""
+    if [[ -f "${DEV2_ENV}" ]]; then
+        DB_PASS=$(grep '^DB_PASSWORD=' "${DEV2_ENV}" | cut -d= -f2- || echo "")
+    fi
+
+    if docker ps --format '{{.Names}}' | grep -q "^firefly_db$"; then
+        if [[ -n "${DB_PASS}" ]]; then
+            docker exec firefly_db mariadb-dump -u firefly -p"${DB_PASS}" --single-transaction --quick firefly > "${TEMP_DIR}/mariadb/firefly.sql"
+            SQL_SIZE=$(du -h "${TEMP_DIR}/mariadb/firefly.sql" | awk '{print $1}')
+            log_success "MariaDB hot dump captured successfully (${SQL_SIZE})."
+        else
+            log_warn "DB_PASSWORD not found in ${DEV2_ENV}, attempting dump without password..."
+            docker exec firefly_db mariadb-dump -u root firefly > "${TEMP_DIR}/mariadb/firefly.sql" 2>/dev/null || log_warn "Could not dump MariaDB database."
+        fi
+    else
+        log_warn "firefly_db container is not running. Checking raw database files..."
+        if [[ -d "${HOMELAB_DIR}/data/dev2/firefly/db" ]]; then
+            log_info "Archiving raw database directory..."
+            mkdir -p "${TEMP_DIR}/mariadb/raw"
+            cp -a "${HOMELAB_DIR}/data/dev2/firefly/db" "${TEMP_DIR}/mariadb/raw/"
+        fi
+    fi
+
+    # 2. Firefly Uploaded Files (Receipts & Attachments)
+    log_info "[2/4] Archiving Firefly III uploaded files and attachments..."
+    if [[ -d "${HOMELAB_DIR}/data/dev2/firefly/upload" ]]; then
+        cp -a "${HOMELAB_DIR}/data/dev2/firefly/upload"/. "${TEMP_DIR}/firefly/upload/" 2>/dev/null || true
+        log_success "Firefly III attachments archived."
+    fi
+
+    # 3. Host Environment & Compose Definition
+    log_info "[3/4] Archiving dev2 stack definition and environment secrets..."
+    [[ -f "${DEV2_ENV}" ]] && cp "${DEV2_ENV}" "${TEMP_DIR}/config/.env"
+    [[ -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.yml"
+    echo "${TARGET_HOST}" > "${TEMP_DIR}/config/host.txt"
+
+else
+    # --------------------------------------------------------------------------
+    # DEV1 BACKUP: Vaultwarden, AdGuard Home, Uptime Kuma, Caddy
+    # --------------------------------------------------------------------------
+    mkdir -p "${TEMP_DIR}/vaultwarden" "${TEMP_DIR}/adguard" "${TEMP_DIR}/caddy" "${TEMP_DIR}/uptime-kuma" "${TEMP_DIR}/config"
+
+    # 1. Vaultwarden Point-in-Time SQLite Backup
+    log_info "[1/5] Creating live point-in-time SQLite snapshot of Vaultwarden..."
+    VW_DB="${HOMELAB_DIR}/data/vaultwarden/db.sqlite3"
+    if [[ -f "${VW_DB}" ]]; then
+        python3 -c "
 import sqlite3
 src = sqlite3.connect('${VW_DB}')
 dst = sqlite3.connect('${TEMP_DIR}/vaultwarden/db.sqlite3')
@@ -59,38 +134,31 @@ src.backup(dst)
 dst.close()
 src.close()
 "
-    log_success "Vaultwarden database snapshot captured."
-else
-    log_warn "db.sqlite3 not found, skipping SQLite snapshot."
-fi
+        log_success "Vaultwarden database snapshot captured."
+    else
+        log_warn "Vaultwarden db.sqlite3 not found, skipping SQLite snapshot."
+    fi
 
-# Copy Vaultwarden configs and keys (if present)
-[[ -f "${HOMELAB_DIR}/data/vaultwarden/config.json" ]] && cp "${HOMELAB_DIR}/data/vaultwarden/config.json" "${TEMP_DIR}/vaultwarden/"
-[[ -f "${HOMELAB_DIR}/data/vaultwarden/rsa_key.pem" ]] && cp "${HOMELAB_DIR}/data/vaultwarden/rsa_key.pem" "${TEMP_DIR}/vaultwarden/"
+    [[ -f "${HOMELAB_DIR}/data/vaultwarden/config.json" ]] && cp "${HOMELAB_DIR}/data/vaultwarden/config.json" "${TEMP_DIR}/vaultwarden/"
+    [[ -f "${HOMELAB_DIR}/data/vaultwarden/rsa_key.pem" ]] && cp "${HOMELAB_DIR}/data/vaultwarden/rsa_key.pem" "${TEMP_DIR}/vaultwarden/"
 
-# ------------------------------------------------------------------------------
-# 2. AdGuard Home Configuration
-# ------------------------------------------------------------------------------
-log_info "[2/6] Backing up AdGuard Home configuration..."
-if [[ -d "${HOMELAB_DIR}/data/adguard/conf" ]]; then
-    cp -r "${HOMELAB_DIR}/data/adguard/conf" "${TEMP_DIR}/adguard/"
-    log_success "AdGuard Home configuration backed up."
-fi
+    # 2. AdGuard Home Configuration
+    log_info "[2/5] Backing up AdGuard Home configuration..."
+    if [[ -d "${HOMELAB_DIR}/data/adguard/conf" ]]; then
+        cp -r "${HOMELAB_DIR}/data/adguard/conf" "${TEMP_DIR}/adguard/"
+        log_success "AdGuard Home configuration backed up."
+    fi
 
-# ------------------------------------------------------------------------------
-# 3. Caddy Configuration & Certificate State
-# ------------------------------------------------------------------------------
-log_info "[3/6] Backing up Caddy reverse proxy files..."
-[[ -f "${HOMELAB_DIR}/Caddyfile" ]] && cp "${HOMELAB_DIR}/Caddyfile" "${TEMP_DIR}/caddy/"
+    # 3. Caddy Configuration & Certificate State
+    log_info "[3/5] Backing up Caddy reverse proxy files..."
+    [[ -f "${HOMELAB_DIR}/Caddyfile" ]] && cp "${HOMELAB_DIR}/Caddyfile" "${TEMP_DIR}/caddy/"
+    [[ -f "${HOMELAB_DIR}/hosts/dev1/Caddyfile" ]] && cp "${HOMELAB_DIR}/hosts/dev1/Caddyfile" "${TEMP_DIR}/caddy/Caddyfile.host"
 
-# ------------------------------------------------------------------------------
-# 4. Uptime Kuma Database Snapshot
-# ------------------------------------------------------------------------------
-log_info "[4/6] Creating live point-in-time SQLite snapshot of Uptime Kuma..."
-UK_DB="${HOMELAB_DIR}/data/uptime-kuma/kuma.db"
-mkdir -p "${TEMP_DIR}/uptime-kuma"
-if [[ -f "${UK_DB}" ]]; then
-    python3 -c "
+    # 4. Uptime Kuma Database Snapshot
+    log_info "[4/5] Creating live point-in-time SQLite snapshot of Uptime Kuma..."
+    UK_DB="${HOMELAB_DIR}/data/uptime-kuma/kuma.db"
+    if [[ -f "${UK_DB}" ]]; then
+        python3 -c "
 import sqlite3
 src = sqlite3.connect('${UK_DB}')
 dst = sqlite3.connect('${TEMP_DIR}/uptime-kuma/kuma.db')
@@ -98,22 +166,24 @@ src.backup(dst)
 dst.close()
 src.close()
 "
-    log_success "Uptime Kuma database snapshot captured."
-else
-    log_warn "kuma.db not found, skipping SQLite snapshot."
+        log_success "Uptime Kuma database snapshot captured."
+    else
+        log_warn "Uptime Kuma kuma.db not found, skipping SQLite snapshot."
+    fi
+
+    # 5. Stack Definitions & Secrets
+    log_info "[5/5] Archiving stack definition files..."
+    [[ -f "${HOMELAB_DIR}/.env" ]] && cp "${HOMELAB_DIR}/.env" "${TEMP_DIR}/config/.env"
+    [[ -f "${HOMELAB_DIR}/hosts/dev1/.env" ]] && cp "${HOMELAB_DIR}/hosts/dev1/.env" "${TEMP_DIR}/config/.env.dev1"
+    [[ -f "${HOMELAB_DIR}/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.yml"
+    [[ -f "${HOMELAB_DIR}/hosts/dev1/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/hosts/dev1/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.dev1.yml"
+    echo "${TARGET_HOST}" > "${TEMP_DIR}/config/host.txt"
 fi
 
 # ------------------------------------------------------------------------------
-# 5. Homelab Environment & Compose Definition
+# Compress, Restrict Permissions & Rotate Old Backups
 # ------------------------------------------------------------------------------
-log_info "[5/6] Archiving stack definition files..."
-[[ -f "${HOMELAB_DIR}/.env" ]] && cp "${HOMELAB_DIR}/.env" "${TEMP_DIR}/config/"
-[[ -f "${HOMELAB_DIR}/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/docker-compose.yml" "${TEMP_DIR}/config/"
-
-# ------------------------------------------------------------------------------
-# 6. Compress, Restrict Permissions & Rotate Old Backups
-# ------------------------------------------------------------------------------
-log_info "[6/6] Creating compressed backup archive..."
+log_info "Creating compressed backup archive..."
 FINAL_ARCHIVE="${BACKUP_ROOT}/${ARCHIVE_NAME}"
 tar -czf "${FINAL_ARCHIVE}" -C "${TEMP_DIR}" .
 chmod 600 "${FINAL_ARCHIVE}"
@@ -128,11 +198,11 @@ PURGED=$(find "${BACKUP_ROOT}" -name "homelab_backup_*.tar.gz" -mtime +"${RETENT
 log_success "Pruned ${PURGED} old backup archive(s)."
 
 # ------------------------------------------------------------------------------
-# 6. Off-Site Cloudflare R2 Encrypted Sync (Zero-Knowledge AES-256)
+# Off-Site Cloudflare R2 Encrypted Sync (Zero-Knowledge AES-256)
 # ------------------------------------------------------------------------------
 RCLONE_CONF="${HOMELAB_DIR}/data/rclone/rclone.conf"
 if command -v rclone &>/dev/null && [[ -f "${RCLONE_CONF}" ]]; then
-    log_info "[6/6] Syncing encrypted backups to Cloudflare R2 (r2-crypt:)..."
+    log_info "Syncing encrypted backups to Cloudflare R2 (r2-crypt:)..."
     if rclone sync "${BACKUP_ROOT}" r2-crypt: --config "${RCLONE_CONF}" --quiet; then
         log_success "Off-site encrypted sync to Cloudflare R2 complete."
     else
@@ -146,6 +216,7 @@ echo ""
 echo "=========================================================="
 echo -e "${GREEN} Homelab Backup & Off-Site Sync Completed!${NC}"
 echo "=========================================================="
+echo "Host:           ${TARGET_HOST}"
 echo "Local Archive:  ${FINAL_ARCHIVE}"
 echo "Size:           ${ARCHIVE_SIZE}"
 echo "Owner:          root:root (0600)"
