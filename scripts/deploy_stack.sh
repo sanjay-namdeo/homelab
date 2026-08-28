@@ -138,6 +138,8 @@ log_info "[5/6] Preparing data directories and secrets..."
 if [[ "${TARGET_HOST}" == "dev2" ]]; then
     mkdir -p "${HOMELAB_DIR}/data/dev2/firefly/db"
     mkdir -p "${HOMELAB_DIR}/data/dev2/firefly/upload"
+    mkdir -p "${HOMELAB_DIR}/data/dev2/firefly/import"
+    chmod -R 775 "${HOMELAB_DIR}/data/dev2/firefly/import" 2>/dev/null || true
     mkdir -p "${HOMELAB_DIR}/hosts/dev2"
 
     DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
@@ -145,6 +147,7 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         log_info "Generating secure secrets for dev2 .env..."
         APP_KEY=$(openssl rand -base64 32 | tr -d '\n')
         DB_PASS=$(openssl rand -hex 16)
+        AUTO_SECRET=$(openssl rand -hex 16)
         cat > "${DEV2_ENV}" << EOF
 # Firefly III & MariaDB Configuration (dev2)
 APP_ENV=local
@@ -166,6 +169,15 @@ AUTHENTICATION_GUARD=web
 SEND_REGISTRATION_MAIL=false
 SEND_ERROR_MESSAGE=false
 STATIC_CRON_TOKEN=$(openssl rand -hex 16)
+
+# Firefly III Data Importer
+FIREFLY_III_URL=http://firefly_app:8080
+VANITY_URL=https://${TS_FQDN}
+FALLBACK_LOCALE=en_US
+CAN_POST_FILES=true
+CAN_POST_AUTOIMPORT=true
+AUTO_IMPORT_SECRET=${AUTO_SECRET}
+IMPORT_DIR_ALLOWLIST=/import
 EOF
         chmod 600 "${DEV2_ENV}"
         log_success "Generated ${DEV2_ENV} (chmod 600)."
@@ -178,13 +190,15 @@ EOF
 
     log_info "Configuring Tailscale Serve for HTTPS termination..."
     tailscale serve --bg --https=443 http://127.0.0.1:8080 2>/dev/null || true
-    log_success "Tailscale Serve configured (https://${TS_FQDN} -> http://127.0.0.1:8080)."
+    tailscale serve --bg --https=8443 http://127.0.0.1:8081 2>/dev/null || true
+    log_success "Tailscale Serve configured (443 -> Firefly III, 8443 -> Data Importer)."
 
     echo ""
     echo "=========================================================="
     echo -e "${GREEN} dev2 Homelab Stack Deployed Successfully!${NC}"
     echo "=========================================================="
-    echo " - Firefly III:  https://${TS_FQDN:-<your-tailscale-fqdn>}"
+    echo " - Firefly III:          https://${TS_FQDN:-<your-tailscale-fqdn>}"
+    echo " - Firefly Data Importer: https://${TS_FQDN:-<your-tailscale-fqdn>}:8443"
     echo "=========================================================="
 
 else

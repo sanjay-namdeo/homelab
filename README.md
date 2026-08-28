@@ -23,8 +23,9 @@ graph TD
     end
 
     subgraph HostDev2 ["🖥️ Host: dev2 (Finance Hub)"]
-        TS_Serve["⚡ Tailscale Serve (:443 TLS)"]
-        FF["💰 Firefly III (:8080)"]
+        TS_Serve["⚡ Tailscale Serve (:443 / :8443 TLS)"]
+        FF["💰 Firefly III Core (:8080)"]
+        FDI["📥 Data Importer (:8081)"]
         DB[("🗄️ MariaDB Database")]
     end
 
@@ -35,10 +36,12 @@ graph TD
     Caddy -->|HTTPS :3001| UK
     TS1 -.->|DNS Port 53| AG
 
-    Client -->|HTTPS :443| TS2
+    Client -->|HTTPS :443 / :8443| TS2
     TS2 --> TS_Serve
-    TS_Serve --> FF
+    TS_Serve -->|:443| FF
+    TS_Serve -->|:8443| FDI
     FF --> DB
+    FDI --> FF
 ```
 
 ---
@@ -69,7 +72,7 @@ homelab/
 │   │   └── README.md
 │   │
 │   └── dev2/                      # Host dev2: Personal Finance Stack
-│       ├── docker-compose.yml     # Firefly III & MariaDB (tuned for 1GB RAM)
+│       ├── docker-compose.yml     # Firefly III, Data Importer & MariaDB (tuned for 1GB RAM)
 │       ├── .env.example
 │       └── README.md
 │
@@ -106,20 +109,22 @@ docker compose up -d
 - **AdGuard Home**: `https://dev1.<tailnet>.ts.net:8081`
 - **Uptime Kuma**: `https://dev1.<tailnet>.ts.net:3001`
 
-### Deploying on `dev2` (Firefly III)
+### Deploying on `dev2` (Firefly III & Data Importer)
 ```bash
 # Automated deployment (recommended):
 sudo bash scripts/deploy_stack.sh dev2
 
 # Or manual deployment:
 cd /opt/homelab/hosts/dev2
-cp .env.example .env      # Generates APP_KEY and DB_PASSWORD
+cp .env.example .env      # Generates APP_KEY, DB_PASSWORD, AUTO_IMPORT_SECRET
 docker compose up -d
 
 # Enable Tailscale Serve (HTTPS termination)
 sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
+sudo tailscale serve --bg --https=8443 http://127.0.0.1:8081
 ```
-- **Firefly III**: `https://dev2.<tailnet>.ts.net`
+- **Firefly III Core**: `https://dev2.<tailnet>.ts.net`
+- **Firefly Data Importer**: `https://dev2.<tailnet>.ts.net:8443`
 
 ---
 
@@ -138,7 +143,8 @@ From any device (laptop, phone) connected to your Tailscale network:
 | **dev1** | **Vaultwarden** | `https://dev1.<tailnet>.ts.net` | Create master password account & link Bitwarden apps. |
 | **dev1** | **AdGuard Home** | `https://dev1.<tailnet>.ts.net:8081` | Complete wizard (port 80/53) & upstream DNS (Cloudflare DoH). |
 | **dev1** | **Uptime Kuma** | `https://dev1.<tailnet>.ts.net:3001` | Create admin account & configure alert notifications. |
-| **dev2** | **Firefly III** | `https://dev2.<tailnet>.ts.net` | Set up initial financial accounts and budgets. |
+| **dev2** | **Firefly III Core** | `https://dev2.<tailnet>.ts.net` | Set up initial financial accounts and budgets. |
+| **dev2** | **Firefly Data Importer** | `https://dev2.<tailnet>.ts.net:8443` | Enter Personal Access Token & import bank statements. |
 
 ---
 

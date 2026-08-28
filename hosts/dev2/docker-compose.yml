@@ -39,6 +39,25 @@ services:
           memory: 384M
           cpus: '1.0'
 
+  firefly_importer:
+    image: fireflyiii/data-importer:latest
+    container_name: firefly_importer
+    restart: unless-stopped
+    depends_on:
+      - firefly_app
+    env_file: .env
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - /opt/homelab/data/dev2/firefly/import:/import
+    networks:
+      - firefly_net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.75'
+
 networks:
   firefly_net:
     driver: bridge

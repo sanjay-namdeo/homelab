@@ -110,7 +110,14 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         log_success "Firefly III attachments archived."
     fi
 
-    # 3. Host Environment & Compose Definition
+    # 3. Firefly Data Importer Files & Configurations
+    if [[ -d "${HOMELAB_DIR}/data/dev2/firefly/import" ]]; then
+        mkdir -p "${TEMP_DIR}/firefly/import"
+        cp -a "${HOMELAB_DIR}/data/dev2/firefly/import"/. "${TEMP_DIR}/firefly/import/" 2>/dev/null || true
+        log_success "Firefly Data Importer directory archived."
+    fi
+
+    # 4. Host Environment & Compose Definition
     log_info "[3/4] Archiving dev2 stack definition and environment secrets..."
     [[ -f "${DEV2_ENV}" ]] && cp "${DEV2_ENV}" "${TEMP_DIR}/config/.env"
     [[ -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.yml"

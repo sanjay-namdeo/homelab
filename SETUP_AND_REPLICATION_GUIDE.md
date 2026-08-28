@@ -536,6 +536,7 @@ Persistent data is segregated by host:
 - **`dev2` (Finance Hub)**:
   - `/opt/homelab/data/dev2/firefly/db/`: MariaDB transactional database storage.
   - `/opt/homelab/data/dev2/firefly/upload/`: Firefly III uploaded invoices, receipts, and documents.
+  - `/opt/homelab/data/dev2/firefly/import/`: Firefly Data Importer statement and auto-import storage.
   - `/opt/homelab/hosts/dev2/.env`: Application encryption key (`APP_KEY`) and database credentials (`DB_PASSWORD`).
 - **All Hosts**:
   - `/opt/homelab/data/backups/`: Local compressed, timestamped, permission-locked (`0600`) archives (`homelab_backup_<host>_<timestamp>.tar.gz`).
@@ -556,7 +557,8 @@ sudo bash /opt/homelab/scripts/backup_homelab.sh
 - **On `dev2`**:
   1. **MariaDB Hot Dump**: Performs a non-blocking, atomic database dump of `firefly` via `mariadb-dump --single-transaction --quick` into a valid SQL archive.
   2. **Receipts & Uploads**: Archives all user-uploaded receipts, invoices, and documents from `data/dev2/firefly/upload`.
-  3. **Encryption Secrets**: Backs up `hosts/dev2/.env` containing the `APP_KEY` necessary to decrypt stored financial data.
+  3. **Data Importer Assets**: Archives auto-import configurations and staging files from `data/dev2/firefly/import`.
+  4. **Encryption Secrets**: Backs up `hosts/dev2/.env` containing the `APP_KEY` necessary to decrypt stored financial data.
 - **On Both Hosts**:
   1. **Security & Permissions**: Compresses data into `/opt/homelab/data/backups/homelab_backup_<host>_<timestamp>.tar.gz` (`0600` root-only).
   2. **Local Rotation**: Purges local backups older than 14 days.

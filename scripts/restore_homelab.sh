@@ -95,6 +95,7 @@ if [[ "${IS_DEV2}" == true ]]; then
     
     mkdir -p "${TARGET_DIR}/hosts/dev2"
     mkdir -p "${TARGET_DIR}/data/dev2/firefly/upload"
+    mkdir -p "${TARGET_DIR}/data/dev2/firefly/import"
     mkdir -p "${TARGET_DIR}/data/dev2/firefly/db"
 
     # 1. Restore Environment & Compose definitions
@@ -109,12 +110,17 @@ if [[ "${IS_DEV2}" == true ]]; then
         log_success "Compose definition restored (${TARGET_DIR}/hosts/dev2/docker-compose.yml)."
     fi
 
-    # 2. Restore Firefly uploads
-    log_info "[3/4] Restoring Firefly III uploaded files..."
+    # 2. Restore Firefly uploads and import assets
+    log_info "[3/4] Restoring Firefly III uploaded and import files..."
     if [[ -d "${TEMP_EXTRACT}/firefly/upload" ]]; then
         cp -a "${TEMP_EXTRACT}/firefly/upload"/. "${TARGET_DIR}/data/dev2/firefly/upload/" 2>/dev/null || true
         chmod -R 775 "${TARGET_DIR}/data/dev2/firefly/upload" 2>/dev/null || true
         log_success "Firefly III uploads restored."
+    fi
+    if [[ -d "${TEMP_EXTRACT}/firefly/import" ]]; then
+        cp -a "${TEMP_EXTRACT}/firefly/import"/. "${TARGET_DIR}/data/dev2/firefly/import/" 2>/dev/null || true
+        chmod -R 775 "${TARGET_DIR}/data/dev2/firefly/import" 2>/dev/null || true
+        log_success "Firefly III import directory restored."
     fi
 
     # 3. Restore / Import MariaDB Database
