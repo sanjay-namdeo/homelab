@@ -213,14 +213,25 @@ On initial access:
 
 ### 2. Recommended Monitors to Add
 
-| Monitor Name | Monitor Type | Target / URL | Heartbeat Interval |
-| :--- | :--- | :--- | :--- |
-| **Vaultwarden HTTPS** | `HTTP(s)` | `https://<tailscale-fqdn>/alive` | `60s` |
-| **AdGuard Home Web** | `HTTP(s)` | `https://<tailscale-fqdn>:8081/login.html` | `60s` |
-| **Uptime Kuma Web** | `HTTP(s)` | `https://<tailscale-fqdn>:3001` | `60s` |
-| **AdGuard DNS Resolver** | `TCP Port` | Hostname: `adguardhome`, Port: `53` | `60s` |
-| **Caddy Reverse Proxy** | `TCP Port` | Hostname: `caddy`, Port: `443` | `60s` |
-| **Docker Containers** | `Docker Container` | Socket: `/var/run/docker.sock` | `60s` |
+#### A. Node: `dev1` (Core Infrastructure)
+
+| Monitor Name | Monitor Type | Target / URL | Heartbeat | Auth / Extra Settings |
+| :--- | :--- | :--- | :--- | :--- |
+| **dev1 - Vaultwarden HTTPS** | `HTTP(s)` | `https://dev1.<tailnet>.ts.net/alive` | `60s` | Accepted: 200-299 |
+| **dev1 - AdGuard Home Web** | `HTTP(s)` | `https://dev1.<tailnet>.ts.net:8081/login.html` | `60s` | Accepted: 200-299 |
+| **dev1 - Uptime Kuma Web** | `HTTP(s)` | `https://dev1.<tailnet>.ts.net:3001` | `60s` | Accepted: 200-299 |
+| **dev1 - AdGuard DNS Port** | `TCP Port` | Hostname: `adguardhome`, Port: `53` | `60s` | Port check |
+| **dev1 - Caddy Reverse Proxy** | `TCP Port` | Hostname: `caddy`, Port: `443` | `60s` | Port check |
+| **dev1 - Docker Containers** | `Docker Container` | Socket: `/var/run/docker.sock` | `60s` | Container list |
+
+#### B. Node: `dev2` (Finance & Obsidian Knowledge Hub)
+
+| Monitor Name | Monitor Type | Target / URL | Heartbeat | Auth / Extra Settings |
+| :--- | :--- | :--- | :--- | :--- |
+| **dev2 - Firefly III Core** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net` | `60s` | Accepted: 200-302 |
+| **dev2 - Firefly Importer** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net:8443` | `60s` | Accepted: 200-302 |
+| **dev2 - Obsidian WebDAV Sync** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net:8082/data/` | `60s` | Basic Auth: `obsidian` / `${WEBDAV_PASSWORD}`, Accepted: 200-299 |
+| **dev2 - Obsidian Web Editor** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net:8083` | `60s` | Accepted: 200-299 |
 
 ### 3. Setting Up Email / SMTP Alert Notifications (Brevo Relay)
 
@@ -246,6 +257,92 @@ To receive real-time email alerts whenever a container goes down or recovers, co
 > [!TIP]
 > You can also attach secondary notification providers (e.g. **Telegram**, **Discord**, **Pushover**, **Slack**, or **Webhook**) under the same **Settings ➔ Notifications** panel for multi-channel incident response.
 
+---
+
+## 📱 Obsidian Knowledge Hub: Multi-Platform Sync & Client Setup Guide
+
+The `dev2` server hosts a centralized, bidirectional Markdown knowledge base synchronized across **Desktop (Windows, macOS, Linux)**, **Mobile (iOS, Android)**, and **Web Browsers**.
+
+```mermaid
+graph LR
+    subgraph Clients ["📱 Client Devices"]
+        PC["💻 Desktop (Obsidian + Remotely Save)"]
+        Phone["📱 Mobile (Obsidian + Remotely Save)"]
+        Browser["🌐 Web Browser (Flatnotes Editor)"]
+    end
+
+    subgraph dev2 ["🖥️ dev2 (Tailscale: dev2.<tailnet>.ts.net)"]
+        TS_Serve["⚡ Tailscale Serve (HTTPS)"]
+        DAV["📁 WebDAV Engine (:8082)"]
+        Web["📝 Flatnotes Web (:8083)"]
+        Vault[("🗄️ Shared Vault (/data/dev2/obsidian/vault)")]
+    end
+
+    PC -->|HTTPS WebDAV| TS_Serve
+    Phone -->|HTTPS WebDAV| TS_Serve
+    Browser -->|HTTPS Web UI| TS_Serve
+
+    TS_Serve -->|:8082| DAV
+    TS_Serve -->|:8083| Web
+
+    DAV <--> Vault
+    Web <--> Vault
+```
+
+### 1. Desktop Client Configuration (Windows / macOS / Linux)
+
+1. **Install Obsidian**: Download from [obsidian.md](https://obsidian.md).
+2. **Open / Create Local Vault**: Open an existing vault folder or create a new one (e.g., `Notes`).
+3. **Install "Remotely Save" Plugin**:
+   - Go to **Settings ⚙️ ➔ Community Plugins**.
+   - Click **Turn on community plugins** (disables Restricted Mode).
+   - Click **Browse**, search for **`Remotely Save`** (by *fyears* / *sboersma*), then click **Install** and **Enable**.
+4. **Configure WebDAV Parameters**:
+   - In **Settings ⚙️ ➔ Community Plugins ➔ Remotely Save (Settings icon ⚙️)**:
+     - **Choose Sync Service**: `Webdav`
+     - **Server Address**: `https://dev2.<tailnet>.ts.net:8082/data/` (or `https://dev2.<tailnet>.ts.net:8082/data/`)
+     - **Username**: `obsidian` (from `hosts/dev2/.env`)
+     - **Password**: `<YOUR_WEBDAV_PASSWORD>` (from `hosts/dev2/.env`)
+     - **Auth Type**: `Basic`
+     - *(Optional)* **End-to-End Encryption**: Enable password encryption if desired (must use identical password on all devices).
+5. **Set Sync Automation**:
+   - **Auto run after starting Obsidian**: Enable (5s delay).
+   - **Auto run every**: `5 minutes` or `10 minutes`.
+   - **Sync on save / file change**: Enable.
+6. **Verify Connection & Initial Sync**:
+   - Click **Check Connection** (shows a green `Success` notice).
+   - Click the **Sync Icon (two circular arrows)** in the left sidebar ribbon to execute the initial sync.
+
+---
+
+### 2. Mobile Client Configuration (iOS & Android)
+
+1. **Install Obsidian**: From Apple App Store or Google Play Store.
+2. **Tailscale Connection**: Ensure Tailscale is connected on your mobile device.
+3. **Create Vault**: Open Obsidian and create an empty vault named `Notes`.
+4. **Install Remotely Save**:
+   - Navigate to **Settings ⚙️ ➔ Community plugins ➔ Turn on community plugins**.
+   - Search for **`Remotely Save`** ➔ Install ➔ Enable.
+5. **Configure Credentials**:
+   - **Sync Service**: `Webdav`
+   - **Server Address**: `https://dev2.<tailnet>.ts.net:8082/data/`
+   - **Username**: `obsidian`
+   - **Password**: `<YOUR_WEBDAV_PASSWORD>`
+   - **Auth Type**: `Basic`
+   - **Auto-Sync**: Enable on app startup.
+6. **Run Sync**:
+   - Tap **Check Connection** ➔ Tap the **Sync Icon** in the sidebar ribbon. Your full vault synchronizes to your device.
+
+---
+
+### 3. Web Browser Access (Any Machine)
+
+1. Open any browser while connected to Tailscale:
+   👉 **`https://dev2.<tailnet>.ts.net:8083`**
+2. Log in with:
+   - **Username**: `obsidian`
+   - **Password**: `<YOUR_FLATNOTES_PASSWORD>` (from `hosts/dev2/.env`)
+3. View, search, and edit notes in real time. All changes immediately write to `/opt/homelab/data/dev2/obsidian/vault` and sync down to all desktop & mobile apps on their next sync cycle.
 
 ---
 
