@@ -93,6 +93,8 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         else
             fail "Container '${c}' is NOT running"
         fi
+    done
+
     # 3. Tailscale Serve Status & Endpoints
     header "3. Functional & Endpoint Verification"
     if command -v tailscale &>/dev/null; then
