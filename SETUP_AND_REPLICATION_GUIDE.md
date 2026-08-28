@@ -255,6 +255,9 @@ To receive real-time email alerts whenever a container goes down or recovers, co
 6. Click **"Save"**.
 
 > [!TIP]
+> **Enhanced Rich HTML Email Notifications**: The homelab includes a customized SMTP notification provider ([`hosts/dev1/uptime-kuma/smtp.js`](hosts/dev1/uptime-kuma/smtp.js)) mounted into Uptime Kuma that renders modern, responsive, card-based HTML emails with color-coded status banners (🔴 Down, ✅ Operational, ⚠️ Certificate Expiry, 🧪 Test), highlighted error logs, latency metrics, state durations, and direct dashboard quick-action links.
+
+> [!TIP]
 > You can also attach secondary notification providers (e.g. **Telegram**, **Discord**, **Pushover**, **Slack**, or **Webhook**) under the same **Settings ➔ Notifications** panel for multi-channel incident response.
 
 ---

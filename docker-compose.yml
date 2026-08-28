@@ -84,6 +84,7 @@ services:
     restart: unless-stopped
     volumes:
       - /opt/homelab/data/uptime-kuma:/app/data
+      - /opt/homelab/hosts/dev1/uptime-kuma/smtp.js:/app/server/notification-providers/smtp.js:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - homelab_net
