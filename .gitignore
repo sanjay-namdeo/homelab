@@ -14,6 +14,14 @@
 data/
 **/data/**
 
+# Knowledge base & documentation notes (synced via WebDAV & Flatnotes, excluded from git)
+/notes/
+notes/
+**/notes/**
+.obsidian/
+**/.obsidian/**
+
+
 # Private keys, certificates & secrets
 *.pem
 *.key
