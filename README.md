@@ -84,11 +84,11 @@ homelab/
 │
 ├── notes/                         # Obsidian & Flatnotes Knowledge Base Vault
 │   ├── 00 - Homelab Hub.md        # Master Map of Content & Live Dashboard
-│   ├── 01 - Architecture & Infrastructure/ # Architecture, Topology, Tailscale & Security
-│   ├── 02 - Services/             # Individual Service Notes (Vaultwarden, Firefly, etc.)
-│   ├── 03 - Operations & Guides/  # SOPs, Alerting & Multi-Device Setup
-│   ├── 04 - Disaster Recovery & Backups/ # Backup Strategy & Host Runbooks
-│   ├── templates/                 # Reusable Obsidian Note Templates
+│   ├── 01 - Architecture - *.md   # Topology, Specifications, Network & Security
+│   ├── 02 - Service - *.md        # Vaultwarden, AdGuard, Uptime Kuma, Firefly, etc.
+│   ├── 03 - Guide - *.md          # Operations, Telegram Alerts, Obsidian & Beszel Setup
+│   ├── 04 - Disaster Recovery - *.md # Backup Strategy, Restore & Host Runbooks
+│   ├── Template - *.md            # Note Templates for Services, Guides & Runbooks
 │   └── .obsidian/                 # Obsidian Vault App & Plugin Configuration
 │
 ├── scripts/                       # Shared operational automation
@@ -116,10 +116,10 @@ All infrastructure documentation, service guides, backup strategies, and disaste
 | Section | Topic & Files |
 | :--- | :--- |
 | **Hub / Dashboard** | [`00 - Homelab Hub.md`](file:///opt/homelab/notes/00%20-%20Homelab%20Hub.md) — Master Map of Content, Service Directory & Status |
-| **01 - Architecture** | [`00 - Architecture MOC.md`](file:///opt/homelab/notes/01%20-%20Architecture%20&%20Infrastructure/00%20-%20Architecture%20MOC.md), Topology, Server Specs, Tailscale Mesh, Caddy Ingress, Security Model |
-| **02 - Services** | [`00 - Services MOC.md`](file:///opt/homelab/notes/02%20-%20Services/00%20-%20Services%20MOC.md), Vaultwarden, AdGuard Home, Uptime Kuma, Firefly Core, Importer, Obsidian Sync, Beszel |
-| **03 - Operations** | [`00 - Operations MOC.md`](file:///opt/homelab/notes/03%20-%20Operations%20&%20Guides/00%20-%20Operations%20MOC.md), Maintenance SOPs, Telegram/Pushover Alerting, Obsidian Client Setup, Beszel Multi-Node |
-| **04 - Disaster Recovery** | [`00 - Disaster Recovery MOC.md`](file:///opt/homelab/notes/04%20-%20Disaster%20Recovery%20&%20Backups/00%20-%20Disaster%20Recovery%20MOC.md), Cloudflare R2 Sync, Bare-Metal Restore, `dev1` Runbook, `dev2` Runbook, Live Drill Protocol |
+| **01 - Architecture** | [`01 - Architecture - Homelab Topology.md`](file:///opt/homelab/notes/01%20-%20Architecture%20-%20Homelab%20Topology.md), Specs, Ingress, Network, Security |
+| **02 - Services** | [`02 - Service - Vaultwarden.md`](file:///opt/homelab/notes/02%20-%20Service%20-%20Vaultwarden.md), AdGuard Home, Uptime Kuma, Firefly Core, Importer, Obsidian, Beszel |
+| **03 - Operations** | [`03 - Guide - Operations, Maintenance & Troubleshooting.md`](file:///opt/homelab/notes/03%20-%20Guide%20-%20Operations,%20Maintenance%20&%20Troubleshooting.md), Telegram Alerting, Obsidian Setup, Beszel Setup |
+| **04 - Disaster Recovery** | [`04 - Disaster Recovery - Backup & Off-Site Sync.md`](file:///opt/homelab/notes/04%20-%20Disaster%20Recovery%20-%20Backup%20&%20Off-Site%20Sync%20(Cloudflare%20R2).md), Restore, `dev1` Runbook, `dev2` Runbook, Live Drill Protocol |
 | **Templates** | Reusable templates for new Services, Guides, DR Runbooks, and Architecture Specs |
 
 ---
