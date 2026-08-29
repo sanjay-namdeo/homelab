@@ -5,7 +5,7 @@
 # Performs consistent, non-blocking point-in-time backups:
 #  - dev1: SQLite online hot-backup (Vaultwarden, Uptime Kuma), AdGuard conf,
 #          Caddy TLS state, environment & compose definitions.
-#  - dev2: MariaDB live atomic dump (Firefly III), uploaded receipts/documents,
+#  - dev2: Obsidian Markdown Vault & Flatnotes data, Beszel Hub metrics & keys,
 #          environment & compose definitions.
 #  - Compresses into a timestamped, permission-locked (0600) archive
 #  - Automatic retention cleanup (default: 14 days)
@@ -54,7 +54,7 @@ fi
 
 if [[ -z "${TARGET_HOST}" ]]; then
     HOSTNAME_S=$(hostname -s 2>/dev/null || echo "")
-    if [[ "${HOSTNAME_S}" == "dev2" ]] || docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^firefly_"; then
+    if [[ "${HOSTNAME_S}" == "dev2" ]] || docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^beszel$"; then
         TARGET_HOST="dev2"
     else
         TARGET_HOST="dev1"
@@ -73,69 +73,29 @@ mkdir -p "${TEMP_DIR}"
 
 if [[ "${TARGET_HOST}" == "dev2" ]]; then
     # --------------------------------------------------------------------------
-    # DEV2 BACKUP: Firefly III & MariaDB
+    # DEV2 BACKUP: Obsidian & Beszel Monitoring Hub
     # --------------------------------------------------------------------------
-    mkdir -p "${TEMP_DIR}/mariadb" "${TEMP_DIR}/firefly/upload" "${TEMP_DIR}/config"
+    mkdir -p "${TEMP_DIR}/config"
 
-    # 1. MariaDB Hot Dump
-    log_info "[1/6] Performing non-blocking MariaDB hot dump of 'firefly' database..."
-    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
-    DB_PASS=""
-    if [[ -f "${DEV2_ENV}" ]]; then
-        DB_PASS=$(grep '^DB_PASSWORD=' "${DEV2_ENV}" | cut -d= -f2- || echo "")
-    fi
-
-    if docker ps --format '{{.Names}}' | grep -q "^firefly_db$"; then
-        if [[ -n "${DB_PASS}" ]]; then
-            docker exec firefly_db mariadb-dump -u firefly -p"${DB_PASS}" --single-transaction --quick firefly > "${TEMP_DIR}/mariadb/firefly.sql"
-            SQL_SIZE=$(du -h "${TEMP_DIR}/mariadb/firefly.sql" | awk '{print $1}')
-            log_success "MariaDB hot dump captured successfully (${SQL_SIZE})."
-        else
-            log_warn "DB_PASSWORD not found in ${DEV2_ENV}, attempting dump without password..."
-            docker exec firefly_db mariadb-dump -u root firefly > "${TEMP_DIR}/mariadb/firefly.sql" 2>/dev/null || log_warn "Could not dump MariaDB database."
-        fi
-    else
-        log_warn "firefly_db container is not running. Checking raw database files..."
-        if [[ -d "${HOMELAB_DIR}/data/dev2/firefly/db" ]]; then
-            log_info "Archiving raw database directory..."
-            mkdir -p "${TEMP_DIR}/mariadb/raw"
-            cp -a "${HOMELAB_DIR}/data/dev2/firefly/db" "${TEMP_DIR}/mariadb/raw/"
-        fi
-    fi
-
-    # 2. Firefly Uploaded Files (Receipts & Attachments)
-    log_info "[2/6] Archiving Firefly III uploaded files and attachments..."
-    if [[ -d "${HOMELAB_DIR}/data/dev2/firefly/upload" ]]; then
-        cp -a "${HOMELAB_DIR}/data/dev2/firefly/upload"/. "${TEMP_DIR}/firefly/upload/" 2>/dev/null || true
-        log_success "Firefly III attachments archived."
-    fi
-
-    # 3. Firefly Data Importer Files & Configurations
-    log_info "[3/6] Archiving Firefly Data Importer files and configurations..."
-    if [[ -d "${HOMELAB_DIR}/data/dev2/firefly/import" ]]; then
-        mkdir -p "${TEMP_DIR}/firefly/import"
-        cp -a "${HOMELAB_DIR}/data/dev2/firefly/import"/. "${TEMP_DIR}/firefly/import/" 2>/dev/null || true
-        log_success "Firefly Data Importer directory archived."
-    fi
-
-    # 4. Obsidian Markdown Vault & Web Data
-    log_info "[4/6] Archiving Obsidian Markdown Vault and Web configuration..."
+    # 1. Obsidian Markdown Vault & Web Data
+    log_info "[1/3] Archiving Obsidian Markdown Vault and Web configuration..."
     if [[ -d "${HOMELAB_DIR}/data/dev2/obsidian" ]]; then
         mkdir -p "${TEMP_DIR}/obsidian"
         cp -a "${HOMELAB_DIR}/data/dev2/obsidian"/. "${TEMP_DIR}/obsidian/" 2>/dev/null || true
         log_success "Obsidian Markdown Vault and Flatnotes data archived."
     fi
 
-    # 5. Beszel Server Monitoring Hub Data & Keys
-    log_info "[5/6] Archiving Beszel Hub data and cryptographic keys..."
+    # 2. Beszel Server Monitoring Hub Data & Keys
+    log_info "[2/3] Archiving Beszel Hub data and cryptographic keys..."
     if [[ -d "${HOMELAB_DIR}/data/dev2/beszel/data" ]]; then
         mkdir -p "${TEMP_DIR}/beszel/data"
         cp -a "${HOMELAB_DIR}/data/dev2/beszel/data"/. "${TEMP_DIR}/beszel/data/" 2>/dev/null || true
         log_success "Beszel Hub metrics database and keys archived."
     fi
 
-    # 6. Host Environment & Compose Definition
-    log_info "[6/6] Archiving dev2 stack definition and environment secrets..."
+    # 3. Host Environment & Compose Definition
+    log_info "[3/3] Archiving dev2 stack definition and environment secrets..."
+    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
     [[ -f "${DEV2_ENV}" ]] && cp "${DEV2_ENV}" "${TEMP_DIR}/config/.env"
     [[ -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.yml"
     echo "${TARGET_HOST}" > "${TEMP_DIR}/config/host.txt"

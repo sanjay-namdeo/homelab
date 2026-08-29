@@ -1,63 +1,4 @@
 services:
-  firefly_db:
-    image: mariadb:lts
-    container_name: firefly_db
-    restart: unless-stopped
-    environment:
-      - MYSQL_RANDOM_ROOT_PASSWORD=yes
-      - MYSQL_USER=firefly
-      - MYSQL_PASSWORD=${DB_PASSWORD}
-      - MYSQL_DATABASE=firefly
-    volumes:
-      - /opt/homelab/data/dev2/firefly/db:/var/lib/mysql
-    # Disable performance schema and limit buffer pool for low-RAM (1GB) host
-    command: --innodb-buffer-pool-size=128M --performance_schema=OFF --max-connections=50
-    networks:
-      - firefly_net
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.75'
-
-  firefly_app:
-    image: fireflyiii/core:latest
-    container_name: firefly_app
-    restart: unless-stopped
-    depends_on:
-      - firefly_db
-    env_file: .env
-    volumes:
-      - /opt/homelab/data/dev2/firefly/upload:/var/www/html/storage/upload
-    ports:
-      - "127.0.0.1:8080:8080"
-    networks:
-      - firefly_net
-    deploy:
-      resources:
-        limits:
-          memory: 384M
-          cpus: '1.0'
-
-  firefly_importer:
-    image: fireflyiii/data-importer:latest
-    container_name: firefly_importer
-    restart: unless-stopped
-    depends_on:
-      - firefly_app
-    env_file: .env
-    ports:
-      - "127.0.0.1:8081:8080"
-    volumes:
-      - /opt/homelab/data/dev2/firefly/import:/import
-    networks:
-      - firefly_net
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.75'
-
   obsidian_webdav:
     image: bytemark/webdav:latest
     container_name: obsidian_webdav
@@ -72,7 +13,7 @@ services:
     ports:
       - "127.0.0.1:8082:80"
     networks:
-      - firefly_net
+      - dev2_net
     deploy:
       resources:
         limits:
@@ -98,7 +39,7 @@ services:
     ports:
       - "127.0.0.1:8083:8080"
     networks:
-      - firefly_net
+      - dev2_net
     deploy:
       resources:
         limits:
@@ -115,7 +56,7 @@ services:
       - /opt/homelab/data/dev2/beszel/data:/beszel_data
       - /opt/homelab/data/dev2/beszel/socket:/beszel_socket
     networks:
-      - firefly_net
+      - dev2_net
     deploy:
       resources:
         limits:
@@ -142,5 +83,5 @@ services:
           cpus: '0.25'
 
 networks:
-  firefly_net:
+  dev2_net:
     driver: bridge

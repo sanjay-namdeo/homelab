@@ -39,7 +39,7 @@ fi
 
 if [[ -z "${TARGET_HOST}" ]]; then
     HOSTNAME_S=$(hostname -s 2>/dev/null || echo "")
-    if [[ "${HOSTNAME_S}" == "dev2" ]] || docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^firefly_"; then
+    if [[ "${HOSTNAME_S}" == "dev2" ]] || docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^beszel$"; then
         TARGET_HOST="dev2"
     else
         TARGET_HOST="dev1"
@@ -75,12 +75,12 @@ fi
 
 if [[ "${TARGET_HOST}" == "dev2" ]]; then
     # ==========================================================================
-    # DEV2 DIAGNOSTIC SUITE (Firefly III & MariaDB)
+    # DEV2 DIAGNOSTIC SUITE (Obsidian & Beszel Monitoring Hub)
     # ==========================================================================
 
     # 2. Container Service Health
     header "2. Container Service Health"
-    CONTAINERS=("firefly_app" "firefly_db" "firefly_importer" "obsidian_webdav" "obsidian_web" "beszel" "beszel_agent")
+    CONTAINERS=("obsidian_webdav" "obsidian_web" "beszel" "beszel_agent")
     for c in "${CONTAINERS[@]}"; do
         if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
             STATUS=$(docker inspect --format='{{.State.Status}}' "${c}" 2>/dev/null || echo "unknown")
@@ -99,18 +99,6 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     header "3. Functional & Endpoint Verification"
     if command -v tailscale &>/dev/null; then
         SERVE_STATUS=$(tailscale serve status 2>&1 || echo "")
-        if echo "${SERVE_STATUS}" | grep -q "127.0.0.1:8080"; then
-            pass "Tailscale Serve TLS reverse proxy is active (443 -> 127.0.0.1:8080)"
-        else
-            warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8080"
-        fi
-
-        if echo "${SERVE_STATUS}" | grep -q "127.0.0.1:8081"; then
-            pass "Tailscale Serve TLS reverse proxy is active (8443 -> 127.0.0.1:8081)"
-        else
-            warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8081"
-        fi
-
         if echo "${SERVE_STATUS}" | grep -q "127.0.0.1:8082"; then
             pass "Tailscale Serve TLS reverse proxy is active (8082 -> 127.0.0.1:8082 WebDAV)"
         else
@@ -128,22 +116,6 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         else
             warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8090"
         fi
-    fi
-
-    # Firefly HTTP local endpoint
-    FF_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8080/" 2>/dev/null || echo "000")
-    if [[ "${FF_HTTP}" == "200" || "${FF_HTTP}" == "302" ]]; then
-        pass "Firefly III local HTTP endpoint is responding (http://127.0.0.1:8080 -> HTTP ${FF_HTTP})"
-    else
-        warn "Firefly III local endpoint returned status code ${FF_HTTP}"
-    fi
-
-    # Firefly Data Importer HTTP local endpoint
-    FF_IMP_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8081/" 2>/dev/null || echo "000")
-    if [[ "${FF_IMP_HTTP}" == "200" || "${FF_IMP_HTTP}" == "302" ]]; then
-        pass "Firefly Data Importer local HTTP endpoint is responding (http://127.0.0.1:8081 -> HTTP ${FF_IMP_HTTP})"
-    else
-        warn "Firefly Data Importer local endpoint returned status code ${FF_IMP_HTTP}"
     fi
 
     # Obsidian WebDAV local endpoint
@@ -177,20 +149,6 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
 
     # HTTPS via Tailscale FQDN
     if [[ -n "${TS_FQDN}" ]]; then
-        FF_TLS=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}/" 2>/dev/null || echo "000")
-        if [[ "${FF_TLS}" == "200" || "${FF_TLS}" == "302" ]]; then
-            pass "Firefly III HTTPS endpoint is responding (https://${TS_FQDN} -> HTTP ${FF_TLS})"
-        else
-            warn "Firefly III HTTPS endpoint returned status code ${FF_TLS}"
-        fi
-
-        FF_IMP_TLS=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8443/" 2>/dev/null || echo "000")
-        if [[ "${FF_IMP_TLS}" == "200" || "${FF_IMP_TLS}" == "302" ]]; then
-            pass "Firefly Data Importer HTTPS endpoint is responding (https://${TS_FQDN}:8443 -> HTTP ${FF_IMP_TLS})"
-        else
-            warn "Firefly Data Importer HTTPS endpoint returned status code ${FF_IMP_TLS}"
-        fi
-
         DAV_TLS=$(curl -s -k -u "${DAV_USER}:${DAV_PASS}" -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8082/data/" 2>/dev/null || echo "000")
         if [[ "${DAV_TLS}" == "200" || "${DAV_TLS}" == "207" || "${DAV_TLS}" == "301" ]]; then
             pass "Obsidian WebDAV HTTPS endpoint is responding (https://${TS_FQDN}:8082/data/ -> HTTP ${DAV_TLS})"
@@ -213,34 +171,10 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         fi
     fi
 
-    # MariaDB Database Ping
-    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
-    DB_PASS=""
-    [[ -f "${DEV2_ENV}" ]] && DB_PASS=$(grep '^DB_PASSWORD=' "${DEV2_ENV}" | cut -d= -f2- || echo "")
-    if [[ -n "${DB_PASS}" ]] && docker ps --format '{{.Names}}' | grep -q "^firefly_db$"; then
-        if docker exec firefly_db mariadb-admin ping -u firefly -p"${DB_PASS}" 2>&1 | grep -q "mysqld is alive"; then
-            pass "MariaDB database is healthy and responding to queries (mysqld is alive)"
-        else
-            fail "MariaDB ping failed"
-        fi
-    fi
-
     # 4. Security & Isolation State
     header "4. Security & Isolation State"
     LAN_IP=$(ip -4 addr show ens3 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1 || echo "")
     if [[ -n "${LAN_IP}" ]]; then
-        if ! nc -z -w 1 "${LAN_IP}" 8080 2>/dev/null; then
-            pass "Port 8080 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
-        else
-            fail "Port 8080 is accessible on WAN/LAN interface (${LAN_IP})!"
-        fi
-
-        if ! nc -z -w 1 "${LAN_IP}" 8081 2>/dev/null; then
-            pass "Port 8081 (Data Importer) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
-        else
-            fail "Port 8081 is accessible on WAN/LAN interface (${LAN_IP})!"
-        fi
-
         if ! nc -z -w 1 "${LAN_IP}" 8082 2>/dev/null; then
             pass "Port 8082 (Obsidian WebDAV) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
         else
@@ -257,12 +191,6 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
             pass "Port 8090 (Beszel Hub) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
         else
             fail "Port 8090 is accessible on WAN/LAN interface (${LAN_IP})!"
-        fi
-
-        if ! nc -z -w 1 "${LAN_IP}" 3306 2>/dev/null; then
-            pass "Port 3306 (MariaDB) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
-        else
-            fail "Port 3306 is accessible on WAN/LAN interface (${LAN_IP})!"
         fi
     fi
 

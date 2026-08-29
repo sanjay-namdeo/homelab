@@ -136,9 +136,6 @@ log_success "Tailscale connected: IP=${TS_IP:-unknown}, FQDN=${TS_FQDN:-unknown}
 log_info "[5/6] Preparing data directories and secrets..."
 
 if [[ "${TARGET_HOST}" == "dev2" ]]; then
-    mkdir -p "${HOMELAB_DIR}/data/dev2/firefly/db"
-    mkdir -p "${HOMELAB_DIR}/data/dev2/firefly/upload"
-    mkdir -p "${HOMELAB_DIR}/data/dev2/firefly/import"
     mkdir -p "${HOMELAB_DIR}/data/dev2/obsidian/vault"
     mkdir -p "${HOMELAB_DIR}/data/dev2/obsidian/flatnotes_data"
     mkdir -p "${HOMELAB_DIR}/data/dev2/beszel/data"
@@ -147,48 +144,18 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         cp -n "${HOMELAB_DIR}/notes"/*.md "${HOMELAB_DIR}/data/dev2/obsidian/vault/" 2>/dev/null || true
     fi
     chown -R 82:82 "${HOMELAB_DIR}/data/dev2/obsidian" 2>/dev/null || true
-    chmod -R 775 "${HOMELAB_DIR}/data/dev2/obsidian" "${HOMELAB_DIR}/data/dev2/firefly/import" 2>/dev/null || true
+    chmod -R 775 "${HOMELAB_DIR}/data/dev2/obsidian" 2>/dev/null || true
     mkdir -p "${HOMELAB_DIR}/hosts/dev2"
 
     DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
     if [[ ! -f "${DEV2_ENV}" ]]; then
         log_info "Generating secure secrets for dev2 .env..."
-        APP_KEY=$(openssl rand -base64 32 | tr -d '\n')
-        DB_PASS=$(openssl rand -hex 16)
-        AUTO_SECRET=$(openssl rand -hex 16)
         DAV_PASS=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
         FLAT_PASS=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
         FLAT_KEY=$(openssl rand -hex 32)
         cat > "${DEV2_ENV}" << EOF
-# Firefly III & MariaDB Configuration (dev2)
-APP_ENV=local
-APP_DEBUG=false
-APP_KEY=base64:${APP_KEY}
-APP_URL=https://${TS_FQDN}
-TRUSTED_PROXIES=**
+# Environment Configuration (dev2)
 TZ=Asia/Kolkata
-
-DB_CONNECTION=mysql
-DB_HOST=firefly_db
-DB_PORT=3306
-DB_DATABASE=firefly
-DB_USERNAME=firefly
-DB_PASSWORD=${DB_PASS}
-
-SITE_OWNER=homelab@local
-AUTHENTICATION_GUARD=web
-SEND_REGISTRATION_MAIL=false
-SEND_ERROR_MESSAGE=false
-STATIC_CRON_TOKEN=$(openssl rand -hex 16)
-
-# Firefly III Data Importer
-FIREFLY_III_URL=http://firefly_app:8080
-VANITY_URL=https://${TS_FQDN}
-FALLBACK_LOCALE=en_US
-CAN_POST_FILES=true
-CAN_POST_AUTOIMPORT=true
-AUTO_IMPORT_SECRET=${AUTO_SECRET}
-IMPORT_DIR_ALLOWLIST=/import
 
 # Obsidian WebDAV Sync & Flatnotes Web Editor
 WEBDAV_USERNAME=obsidian
@@ -212,19 +179,15 @@ EOF
     log_success "dev2 Docker stack started."
 
     log_info "Configuring Tailscale Serve for HTTPS termination..."
-    tailscale serve --bg --https=443 http://127.0.0.1:8080 2>/dev/null || true
-    tailscale serve --bg --https=8443 http://127.0.0.1:8081 2>/dev/null || true
     tailscale serve --bg --https=8082 http://127.0.0.1:8082 2>/dev/null || true
     tailscale serve --bg --https=8083 http://127.0.0.1:8083 2>/dev/null || true
     tailscale serve --bg --https=8090 http://127.0.0.1:8090 2>/dev/null || true
-    log_success "Tailscale Serve configured (443 -> Firefly, 8443 -> Importer, 8082 -> WebDAV, 8083 -> Flatnotes, 8090 -> Beszel Hub)."
+    log_success "Tailscale Serve configured (8082 -> WebDAV, 8083 -> Flatnotes, 8090 -> Beszel Hub)."
 
     echo ""
     echo "=========================================================="
     echo -e "${GREEN} dev2 Homelab Stack Deployed Successfully!${NC}"
     echo "=========================================================="
-    echo " - Firefly III:           https://${TS_FQDN:-<your-tailscale-fqdn>}"
-    echo " - Firefly Data Importer:  https://${TS_FQDN:-<your-tailscale-fqdn>}:8443"
     echo " - Obsidian WebDAV Sync:   https://${TS_FQDN:-<your-tailscale-fqdn>}:8082/data/"
     echo " - Obsidian Web Editor:    https://${TS_FQDN:-<your-tailscale-fqdn>}:8083"
     echo " - Beszel Health Hub:      https://${TS_FQDN:-<your-tailscale-fqdn>}:8090"

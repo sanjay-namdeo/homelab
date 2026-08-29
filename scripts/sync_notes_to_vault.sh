@@ -60,8 +60,6 @@ cp "${NOTES_DIR}/00 - Homelab Hub.md" "${VAULT_DIR}/notes/00 - Homelab Overview 
 cp "${NOTES_DIR}/02 - Service - Vaultwarden.md" "${VAULT_DIR}/notes/Service - Vaultwarden.md" 2>/dev/null || true
 cp "${NOTES_DIR}/02 - Service - AdGuard Home.md" "${VAULT_DIR}/notes/Service - AdGuard Home.md" 2>/dev/null || true
 cp "${NOTES_DIR}/02 - Service - Uptime Kuma.md" "${VAULT_DIR}/notes/Service - Uptime Kuma.md" 2>/dev/null || true
-cp "${NOTES_DIR}/02 - Service - Firefly III Core.md" "${VAULT_DIR}/notes/Service - Firefly III Core.md" 2>/dev/null || true
-cp "${NOTES_DIR}/02 - Service - Firefly III Data Importer.md" "${VAULT_DIR}/notes/Service - Firefly III Data Importer.md" 2>/dev/null || true
 cp "${NOTES_DIR}/02 - Service - Obsidian Sync & Flatnotes.md" "${VAULT_DIR}/notes/Service - Obsidian Sync & Flatnotes.md" 2>/dev/null || true
 cp "${NOTES_DIR}/02 - Service - Beszel Server Monitoring.md" "${VAULT_DIR}/notes/Service - Beszel Server Monitoring.md" 2>/dev/null || true
 cp "${NOTES_DIR}/02 - Service - Caddy Reverse Proxy.md" "${VAULT_DIR}/notes/Service - Caddy Reverse Proxy.md" 2>/dev/null || true

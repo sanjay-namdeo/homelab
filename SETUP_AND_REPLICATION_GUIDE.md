@@ -224,12 +224,10 @@ On initial access:
 | **dev1 - Caddy Reverse Proxy** | `TCP Port` | Hostname: `caddy`, Port: `443` | `60s` | Port check |
 | **dev1 - Docker Containers** | `Docker Container` | Socket: `/var/run/docker.sock` | `60s` | Container list |
 
-#### B. Node: `dev2` (Finance, Knowledge Hub & Server Monitoring)
+#### B. Node: `dev2` (Knowledge Hub & Server Monitoring)
 
 | Monitor Name | Monitor Type | Target / URL | Heartbeat | Auth / Extra Settings |
 | :--- | :--- | :--- | :--- | :--- |
-| **dev2 - Firefly III Core** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net` | `60s` | Accepted: 200-302 |
-| **dev2 - Firefly Importer** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net:8443` | `60s` | Accepted: 200-302 |
 | **dev2 - Obsidian WebDAV Sync** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net:8082/data/` | `60s` | Basic Auth: `obsidian` / `${WEBDAV_PASSWORD}`, Accepted: 200-299 |
 | **dev2 - Obsidian Web Editor** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net:8083` | `60s` | Accepted: 200-299 |
 | **dev2 - Beszel Health Hub** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net:8090` | `60s` | Accepted: 200-299 |
@@ -634,14 +632,11 @@ Persistent data is segregated by host:
   - `/opt/homelab/data/adguard/conf/`: `AdGuardHome.yaml` configuration, filters, client rules.
   - `/opt/homelab/data/uptime-kuma/`: SQLite monitoring database (`kuma.db`), TLS tracking.
   - `/opt/homelab/data/caddy/`: TLS certificates and Caddy configuration cache.
-- **`dev2` (Finance & Monitoring Hub)**:
-  - `/opt/homelab/data/dev2/firefly/db/`: MariaDB transactional database storage.
-  - `/opt/homelab/data/dev2/firefly/upload/`: Firefly III uploaded invoices, receipts, and documents.
-  - `/opt/homelab/data/dev2/firefly/import/`: Firefly Data Importer statement and auto-import storage.
+- **`dev2` (Knowledge & Monitoring Hub)**:
   - `/opt/homelab/data/dev2/obsidian/vault/`: Obsidian Markdown notes and attachments vault.
   - `/opt/homelab/data/dev2/obsidian/flatnotes_data/`: Flatnotes search index and user preferences.
   - `/opt/homelab/data/dev2/beszel/data/`: Beszel Hub metrics database (`data.db`, SQLite) and SSH cryptographic keypair.
-  - `/opt/homelab/hosts/dev2/.env`: Application encryption key (`APP_KEY`) and database credentials (`DB_PASSWORD`).
+  - `/opt/homelab/hosts/dev2/.env`: Application secrets, WebDAV credentials, and R2 keys.
 - **All Hosts**:
   - `/opt/homelab/data/backups/`: Local compressed, timestamped, permission-locked (`0600`) archives (`homelab_backup_<host>_<timestamp>.tar.gz`).
 
@@ -659,12 +654,9 @@ sudo bash /opt/homelab/scripts/backup_homelab.sh
   1. **Live SQLite Snapshot**: Captures a point-in-time database snapshot via Python's native `sqlite3.backup()` API (100% safe from WAL corruption).
   2. **Configuration Packaging**: Archives AdGuard filters, Caddy TLS configurations, Uptime Kuma db, and `.env` secrets.
 - **On `dev2`**:
-  1. **MariaDB Hot Dump**: Performs a non-blocking, atomic database dump of `firefly` via `mariadb-dump --single-transaction --quick` into a valid SQL archive.
-  2. **Receipts & Uploads**: Archives all user-uploaded receipts, invoices, and documents from `data/dev2/firefly/upload`.
-  3. **Data Importer Assets**: Archives auto-import configurations and staging files from `data/dev2/firefly/import`.
-  4. **Obsidian Vault**: Archives all Markdown notes, attachments, and Flatnotes metadata from `data/dev2/obsidian`.
-  5. **Beszel Hub Metrics & Keys**: Archives historical server metrics database and SSH keys from `data/dev2/beszel/data`.
-  6. **Encryption Secrets**: Backs up `hosts/dev2/.env` containing `APP_KEY` and host configurations.
+  1. **Obsidian Vault**: Archives all Markdown notes, attachments, and Flatnotes metadata from `data/dev2/obsidian`.
+  2. **Beszel Hub Metrics & Keys**: Archives historical server metrics database and SSH keys from `data/dev2/beszel/data`.
+  3. **Configuration & Secrets**: Backs up `hosts/dev2/.env` containing WebDAV credentials and R2 secrets.
 - **On Both Hosts**:
   1. **Security & Permissions**: Compresses data into `/opt/homelab/data/backups/homelab_backup_<host>_<timestamp>.tar.gz` (`0600` root-only).
   2. **Local Rotation**: Purges local backups older than 14 days.

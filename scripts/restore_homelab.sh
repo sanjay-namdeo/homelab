@@ -4,9 +4,9 @@
 # ==============================================================================
 # Restores homelab stack state from a timestamped backup archive:
 #  - dev1: Vaultwarden database & keys, AdGuard conf, Uptime Kuma db, Caddyfile, .env
-#  - dev2: MariaDB firefly database, Firefly upload assets, .env secrets, docker-compose.yml
+#  - dev2: Obsidian Markdown Vault & Flatnotes data, Beszel Hub metrics & keys, .env secrets, docker-compose.yml
 #  - Enforces strict security permissions (0700/0600)
-#  - Validates database integrity (SQLite integrity_check / MariaDB SQL verification)
+#  - Validates database integrity (SQLite integrity_check)
 # ==============================================================================
 
 set -euo pipefail
@@ -32,16 +32,25 @@ usage() {
     exit 1
 }
 
-if [[ $# -lt 1 ]]; then
-    usage
-fi
-
-ARCHIVE_PATH="$1"
-shift
-
+ARCHIVE_PATH=""
 TARGET_DIR="/opt/homelab"
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --latest)
+            LATEST_FOUND=$(find /opt/homelab/data/backups -name "homelab_backup_*.tar.gz" -type f 2>/dev/null | sort -r | head -n 1 || echo "")
+            if [[ -n "${LATEST_FOUND}" && -f "${LATEST_FOUND}" ]]; then
+                ARCHIVE_PATH="${LATEST_FOUND}"
+            else
+                log_error "No backup archives found in /opt/homelab/data/backups"
+                exit 1
+            fi
+            shift 1
+            ;;
+        --archive)
+            ARCHIVE_PATH="$2"
+            shift 2
+            ;;
         --target-dir)
             TARGET_DIR="$2"
             shift 2
@@ -50,11 +59,21 @@ while [[ $# -gt 0 ]]; do
             usage
             ;;
         *)
-            log_error "Unknown option: $1"
-            usage
+            if [[ -z "${ARCHIVE_PATH}" && "$1" != --* ]]; then
+                ARCHIVE_PATH="$1"
+                shift 1
+            else
+                log_error "Unknown option: $1"
+                usage
+            fi
             ;;
     esac
 done
+
+if [[ -z "${ARCHIVE_PATH}" ]]; then
+    log_error "No backup archive specified. Pass path to archive or use --latest"
+    usage
+fi
 
 if [[ $EUID -ne 0 ]]; then
     log_error "This script must be run as root or with sudo: sudo $0 ..."
@@ -83,7 +102,7 @@ IS_DEV2=false
 if [[ -f "${TEMP_EXTRACT}/config/host.txt" ]]; then
     HOST_TYPE=$(cat "${TEMP_EXTRACT}/config/host.txt")
     [[ "${HOST_TYPE}" == "dev2" ]] && IS_DEV2=true
-elif [[ -d "${TEMP_EXTRACT}/mariadb" || -d "${TEMP_EXTRACT}/firefly" ]]; then
+elif [[ -d "${TEMP_EXTRACT}/obsidian" || -d "${TEMP_EXTRACT}/beszel" ]]; then
     IS_DEV2=true
 fi
 
@@ -91,15 +110,12 @@ if [[ "${IS_DEV2}" == true ]]; then
     # --------------------------------------------------------------------------
     # DEV2 RESTORE PROCEDURE
     # --------------------------------------------------------------------------
-    log_info "Detected Host Profile: dev2 (Firefly III & MariaDB)"
+    log_info "Detected Host Profile: dev2 (Obsidian & Beszel Monitoring Hub)"
     
     mkdir -p "${TARGET_DIR}/hosts/dev2"
-    mkdir -p "${TARGET_DIR}/data/dev2/firefly/upload"
-    mkdir -p "${TARGET_DIR}/data/dev2/firefly/import"
-    mkdir -p "${TARGET_DIR}/data/dev2/firefly/db"
 
     # 1. Restore Environment & Compose definitions
-    log_info "[2/4] Restoring dev2 environment secrets and compose file..."
+    log_info "[2/3] Restoring dev2 environment secrets and compose file..."
     if [[ -f "${TEMP_EXTRACT}/config/.env" ]]; then
         cp "${TEMP_EXTRACT}/config/.env" "${TARGET_DIR}/hosts/dev2/.env"
         chmod 600 "${TARGET_DIR}/hosts/dev2/.env"
@@ -110,20 +126,8 @@ if [[ "${IS_DEV2}" == true ]]; then
         log_success "Compose definition restored (${TARGET_DIR}/hosts/dev2/docker-compose.yml)."
     fi
 
-    # 2. Restore Firefly uploads and import assets
-    log_info "[3/4] Restoring Firefly III uploaded and import files..."
-    if [[ -d "${TEMP_EXTRACT}/firefly/upload" ]]; then
-        cp -a "${TEMP_EXTRACT}/firefly/upload"/. "${TARGET_DIR}/data/dev2/firefly/upload/" 2>/dev/null || true
-        chmod -R 775 "${TARGET_DIR}/data/dev2/firefly/upload" 2>/dev/null || true
-        log_success "Firefly III uploads restored."
-    fi
-    if [[ -d "${TEMP_EXTRACT}/firefly/import" ]]; then
-        cp -a "${TEMP_EXTRACT}/firefly/import"/. "${TARGET_DIR}/data/dev2/firefly/import/" 2>/dev/null || true
-        chmod -R 775 "${TARGET_DIR}/data/dev2/firefly/import" 2>/dev/null || true
-        log_success "Firefly III import directory restored."
-    fi
-
-    # 3. Restore Obsidian Markdown Vault & Web Data
+    # 2. Restore Obsidian Markdown Vault & Web Data
+    log_info "[3/3] Restoring Obsidian Markdown Vault and Beszel Hub data..."
     if [[ -d "${TEMP_EXTRACT}/obsidian" ]]; then
         log_info "Restoring Obsidian Markdown Vault and Web configuration..."
         mkdir -p "${TARGET_DIR}/data/dev2/obsidian"
@@ -133,7 +137,7 @@ if [[ "${IS_DEV2}" == true ]]; then
         log_success "Obsidian Markdown Vault restored."
     fi
 
-    # 4. Restore Beszel Server Monitoring Hub Data & Keys
+    # 3. Restore Beszel Server Monitoring Hub Data & Keys
     if [[ -d "${TEMP_EXTRACT}/beszel" ]]; then
         log_info "Restoring Beszel Server Monitoring Hub data and keys..."
         mkdir -p "${TARGET_DIR}/data/dev2/beszel/data" "${TARGET_DIR}/data/dev2/beszel/socket"
@@ -141,45 +145,23 @@ if [[ "${IS_DEV2}" == true ]]; then
         log_success "Beszel Server Monitoring Hub data restored."
     fi
 
-    # 5. Restore / Import MariaDB Database
-    log_info "[4/4] Processing MariaDB database snapshot..."
-    if [[ -f "${TEMP_EXTRACT}/mariadb/firefly.sql" ]]; then
-        RESTORE_SQL="${TARGET_DIR}/data/dev2/firefly/restored_firefly_$(date +%Y%m%d_%H%M%S).sql"
-        cp "${TEMP_EXTRACT}/mariadb/firefly.sql" "${RESTORE_SQL}"
-        chmod 600 "${RESTORE_SQL}"
-        log_success "SQL dump copied to: ${RESTORE_SQL}"
-
-        # SQL integrity check
-        if grep -q "CREATE TABLE" "${RESTORE_SQL}" || grep -q "Dump completed" "${RESTORE_SQL}"; then
-            log_success "MariaDB SQL dump integrity: OK"
+    # 4. Database Integrity Verification (dev2)
+    echo "=========================================================="
+    echo " Validating Restored Database Integrity"
+    echo "=========================================================="
+    if [[ -f "${TARGET_DIR}/data/dev2/beszel/data/data.db" ]]; then
+        if python3 -c "
+import sqlite3, sys
+con = sqlite3.connect('${TARGET_DIR}/data/dev2/beszel/data/data.db')
+res = con.execute('PRAGMA integrity_check;').fetchall()
+con.close()
+sys.exit(0 if res == [('ok',)] else 1)
+"; then
+            log_success "Beszel Hub SQLite database integrity: OK"
         else
-            log_error "MariaDB SQL dump integrity check FAILED (missing valid SQL headers/tables)"
+            log_error "Beszel Hub SQLite integrity check FAILED"
             exit 1
         fi
-
-        # If firefly_db container is running and restoring to production directory, import database
-        if [[ "${TARGET_DIR}" == "/opt/homelab" ]] && docker ps --format '{{.Names}}' | grep -q "^firefly_db$"; then
-            DEV2_ENV="${TARGET_DIR}/hosts/dev2/.env"
-            DB_PASS=$(grep '^DB_PASSWORD=' "${DEV2_ENV}" | cut -d= -f2- || echo "")
-            if [[ -n "${DB_PASS}" ]]; then
-                log_info "Live production firefly_db container detected. Importing database..."
-                if docker exec -i firefly_db mariadb -u firefly -p"${DB_PASS}" firefly < "${RESTORE_SQL}"; then
-                    log_success "Database successfully imported into live MariaDB container."
-                else
-                    log_warn "Automatic live database import failed. You can manually import using:"
-                    echo "  docker exec -i firefly_db mariadb -u firefly -p'<password>' firefly < ${RESTORE_SQL}"
-                fi
-            fi
-        else
-            log_info "Database snapshot extracted and validated (safe mode / target: ${TARGET_DIR})."
-            log_info "To import after launching containers:"
-            echo "  cd ${TARGET_DIR}/hosts/dev2 && docker compose up -d"
-            echo "  docker exec -i firefly_db mariadb -u firefly -p'<password>' firefly < ${RESTORE_SQL}"
-        fi
-    elif [[ -d "${TEMP_EXTRACT}/mariadb/raw" ]]; then
-        log_info "Restoring raw MariaDB data directory..."
-        cp -a "${TEMP_EXTRACT}/mariadb/raw/db"/. "${TARGET_DIR}/data/dev2/firefly/db/"
-        log_success "Raw MariaDB data directory restored."
     fi
 
 else
