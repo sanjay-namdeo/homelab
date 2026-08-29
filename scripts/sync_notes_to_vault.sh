@@ -2,9 +2,9 @@
 # ==============================================================================
 # Homelab: Sync Documentation Notes to Obsidian & Flatnotes Vault
 # ==============================================================================
-# Pulls latest documentation from git, synchronizes all notes to the vault,
-# fixes permissions for WebDAV (UID 33) & Flatnotes (UID 82), and rebuilds
-# the Flatnotes search index.
+# Pulls latest documentation from git, synchronizes all organized notes to
+# the live Obsidian vault, enforces WebDAV & Flatnotes permissions (UID 82),
+# cleans search index cache, and restarts Flatnotes / WebDAV if necessary.
 # ==============================================================================
 
 set -euo pipefail
@@ -32,24 +32,47 @@ fi
 
 cd "${HOMELAB_DIR}"
 
-log_info "1. Pulling latest documentation notes from git..."
-GIT_SSH_COMMAND="ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new" git pull || log_warn "Git pull skipped or already up to date."
-
+log_info "1. Checking git notes directory..."
 if [[ ! -d "${NOTES_DIR}" ]]; then
     log_error "Notes directory ${NOTES_DIR} not found!"
     exit 1
 fi
 
-log_info "2. Preparing vault directory (${VAULT_DIR})..."
+log_info "2. Preparing live vault directory (${VAULT_DIR})..."
 mkdir -p "${VAULT_DIR}"
 mkdir -p "${INDEX_DIR}"
 
-log_info "3. Copying markdown notes into Obsidian/Flatnotes vault..."
-mkdir -p "${VAULT_DIR}/notes"
-cp -v "${NOTES_DIR}"/*.md "${VAULT_DIR}/"
-cp -v "${NOTES_DIR}"/*.md "${VAULT_DIR}/notes/"
+log_info "3. Synchronizing structured notes to Obsidian vault..."
+# Clean out legacy loose flat notes from the vault root
+rm -f "${VAULT_DIR}/CORRUPTED_FILE.txt" "${VAULT_DIR}/Test.md" "${VAULT_DIR}/DR_Live_Test.md" "${VAULT_DIR}/Disaster_Recovery_Validation.md" 2>/dev/null || true
+rm -rf "${VAULT_DIR}/notes" 2>/dev/null || true
 
-log_info "4. Setting permissions for Flatnotes (UID 82) and WebDAV (UID 33)..."
+# Copy all structured folders and markdown files
+cp -r "${NOTES_DIR}"/* "${VAULT_DIR}/" 2>/dev/null || true
+[[ -d "${NOTES_DIR}/.obsidian" ]] && cp -r "${NOTES_DIR}/.obsidian" "${VAULT_DIR}/" 2>/dev/null || true
+
+# Clean legacy flat files if they exist in vault root
+rm -f \
+  "${VAULT_DIR}/00 - Homelab Overview & Architecture.md" \
+  "${VAULT_DIR}/Beszel Monitoring Setup.md" \
+  "${VAULT_DIR}/Disaster Recovery Runbook - dev1 (Identity, DNS & Edge Services).md" \
+  "${VAULT_DIR}/Disaster Recovery Runbook - dev2 (Finance & Monitoring).md" \
+  "${VAULT_DIR}/Guide - Backup & Off-Site Sync.md" \
+  "${VAULT_DIR}/Guide - Disaster Recovery & Restore.md" \
+  "${VAULT_DIR}/Guide - Operations, Maintenance & Troubleshooting.md" \
+  "${VAULT_DIR}/Notifications  - Telegram.md" \
+  "${VAULT_DIR}/Obsidian Setup.md" \
+  "${VAULT_DIR}/Service - AdGuard Home.md" \
+  "${VAULT_DIR}/Service - Beszel Server Monitoring.md" \
+  "${VAULT_DIR}/Service - Caddy Reverse Proxy.md" \
+  "${VAULT_DIR}/Service - Firefly III Core.md" \
+  "${VAULT_DIR}/Service - Firefly III Data Importer.md" \
+  "${VAULT_DIR}/Service - Obsidian Sync & Flatnotes.md" \
+  "${VAULT_DIR}/Service - Tailscale WireGuard Mesh.md" \
+  "${VAULT_DIR}/Service - Uptime Kuma.md" \
+  "${VAULT_DIR}/Service - Vaultwarden.md" 2>/dev/null || true
+
+log_info "4. Setting permissions for Flatnotes and WebDAV (UID 82:82)..."
 chown -R 82:82 "${HOMELAB_DIR}/data/dev2/obsidian" 2>/dev/null || true
 chmod -R 777 "${HOMELAB_DIR}/data/dev2/obsidian"
 
@@ -69,6 +92,6 @@ echo ""
 echo "=========================================================="
 log_success "All notes synchronized to Obsidian & Flatnotes successfully!"
 echo "=========================================================="
-echo "Files in vault:"
-ls -la "${VAULT_DIR}"
+echo "Vault Directory Tree:"
+find "${VAULT_DIR}" -maxdepth 2 -not -path '*/.*' | sort
 echo "=========================================================="
