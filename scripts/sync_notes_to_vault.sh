@@ -45,7 +45,9 @@ mkdir -p "${VAULT_DIR}"
 mkdir -p "${INDEX_DIR}"
 
 log_info "3. Copying markdown notes into Obsidian/Flatnotes vault..."
+mkdir -p "${VAULT_DIR}/notes"
 cp -v "${NOTES_DIR}"/*.md "${VAULT_DIR}/"
+cp -v "${NOTES_DIR}"/*.md "${VAULT_DIR}/notes/"
 
 log_info "4. Setting permissions for Flatnotes (UID 82) and WebDAV (UID 33)..."
 chown -R 82:82 "${HOMELAB_DIR}/data/dev2/obsidian" 2>/dev/null || true
