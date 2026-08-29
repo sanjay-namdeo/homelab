@@ -82,6 +82,11 @@ homelab/
 │       ├── .env.example
 │       └── README.md
 │
+├── notes/                         # Obsidian & Flatnotes Knowledge Base Hub
+│   ├── 00 - Homelab Overview & Architecture.md
+│   ├── Service - *.md             # Service-specific guides (Vaultwarden, AdGuard, etc.)
+│   └── Guide - *.md               # Operational guides (Backup, Disaster Recovery, Maintenance)
+│
 ├── scripts/                       # Shared operational automation
 │   ├── deploy_stack.sh           # Automated deployment with host auto-detection
 │   ├── backup_homelab.sh         # Online hot-backup (SQLite / MariaDB) & R2 sync
@@ -96,6 +101,28 @@ homelab/
 ├── README.md                      # Central homelab overview
 └── SETUP_AND_REPLICATION_GUIDE.md # Detailed replication and day-2 operations guide
 ```
+
+---
+
+## 📚 Knowledge Base & Flatnotes Web Editor
+
+All infrastructure documentation, service guides, backup strategies, and disaster recovery runbooks are curated as Obsidian-compatible markdown notes in [`notes/`](file:///opt/homelab/notes/) and accessible via the **Flatnotes Web Editor** at `https://dev2.<tailnet>.ts.net:8083`.
+
+| Note File | Topic |
+| :--- | :--- |
+| [`00 - Homelab Overview & Architecture.md`](file:///opt/homelab/notes/00%20-%20Homelab%20Overview%20&%20Architecture.md) | Complete topology, port directory, and security model |
+| [`Service - Vaultwarden.md`](file:///opt/homelab/notes/Service%20-%20Vaultwarden.md) | Bitwarden server, mobile/browser clients, Argon2id & hardening |
+| [`Service - AdGuard Home.md`](file:///opt/homelab/notes/Service%20-%20AdGuard%20Home.md) | DNS sinkhole, DoH/DoT upstream, blocklists, Tailscale MagicDNS |
+| [`Service - Uptime Kuma.md`](file:///opt/homelab/notes/Service%20-%20Uptime%20Kuma.md) | Service monitors, SSL alerts, rich HTML email & Telegram alerts |
+| [`Service - Caddy Reverse Proxy.md`](file:///opt/homelab/notes/Service%20-%20Caddy%20Reverse%20Proxy.md) | Caddyfile directives, MagicDNS Let's Encrypt TLS, websockets |
+| [`Service - Tailscale WireGuard Mesh.md`](file:///opt/homelab/notes/Service%20-%20Tailscale%20WireGuard%20Mesh.md) | WireGuard mesh, exit nodes, Tailscale Serve, ACLs |
+| [`Service - Firefly III Core.md`](file:///opt/homelab/notes/Service%20-%20Firefly%20III%20Core.md) | Double-entry accounting, budgets, MariaDB 1GB RAM tuning |
+| [`Service - Firefly III Data Importer.md`](file:///opt/homelab/notes/Service%20-%20Firefly%20III%20Data%20Importer.md) | Bank statement imports (CSV/CAMT), OAuth PAT, auto-import |
+| [`Service - Obsidian Sync & Flatnotes.md`](file:///opt/homelab/notes/Service%20-%20Obsidian%20Sync%20&%20Flatnotes.md) | Tri-platform sync (Remotely Save WebDAV & Flatnotes web wiki) |
+| [`Service - Beszel Server Monitoring.md`](file:///opt/homelab/notes/Service%20-%20Beszel%20Server%20Monitoring.md) | Real-time CPU, RAM, disk, network & container metrics hub |
+| [`Guide - Backup & Off-Site Sync.md`](file:///opt/homelab/notes/Guide%20-%20Backup%20&%20Off-Site%20Sync.md) | 3-2-1 backup strategy, hot atomic dumps, Cloudflare R2 sync |
+| [`Guide - Disaster Recovery & Restore.md`](file:///opt/homelab/notes/Guide%20-%20Disaster%20Recovery%20&%20Restore.md) | 1-command restore, bare-metal recovery, service-specific restore |
+| [`Guide - Operations, Maintenance & Troubleshooting.md`](file:///opt/homelab/notes/Guide%20-%20Operations,%20Maintenance%20&%20Troubleshooting.md) | Healthcheck diagnostics, upgrades, rollbacks & troubleshooting |
 
 ---
 

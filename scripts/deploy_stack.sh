@@ -143,6 +143,9 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     mkdir -p "${HOMELAB_DIR}/data/dev2/obsidian/flatnotes_data"
     mkdir -p "${HOMELAB_DIR}/data/dev2/beszel/data"
     mkdir -p "${HOMELAB_DIR}/data/dev2/beszel/socket"
+    if [[ -d "${HOMELAB_DIR}/notes" ]]; then
+        cp -n "${HOMELAB_DIR}/notes"/*.md "${HOMELAB_DIR}/data/dev2/obsidian/vault/" 2>/dev/null || true
+    fi
     chown -R 82:82 "${HOMELAB_DIR}/data/dev2/obsidian" 2>/dev/null || true
     chmod -R 775 "${HOMELAB_DIR}/data/dev2/obsidian" "${HOMELAB_DIR}/data/dev2/firefly/import" 2>/dev/null || true
     mkdir -p "${HOMELAB_DIR}/hosts/dev2"
