@@ -42,24 +42,37 @@ log_info "2. Preparing live vault directory (${VAULT_DIR})..."
 mkdir -p "${VAULT_DIR}"
 mkdir -p "${INDEX_DIR}"
 
-log_info "3. Cleaning stale directories from Obsidian/Flatnotes vault..."
-# Remove stale subdirectories so vault is clean and flat
-rm -rf "${VAULT_DIR}/notes" \
-       "${VAULT_DIR}/01 - Architecture & Infrastructure" \
-       "${VAULT_DIR}/02 - Services" \
-       "${VAULT_DIR}/03 - Operations & Guides" \
-       "${VAULT_DIR}/04 - Disaster Recovery & Backups" \
-       "${VAULT_DIR}/templates" \
-       "${VAULT_DIR}/CORRUPTED_FILE.txt" \
-       "${VAULT_DIR}/Test.md" \
-       "${VAULT_DIR}/DR_Live_Test.md" \
-       "${VAULT_DIR}/Disaster_Recovery_Validation.md" 2>/dev/null || true
+log_info "3. Preparing Obsidian/Flatnotes vault directories..."
+mkdir -p "${VAULT_DIR}/notes/homelab"
+mkdir -p "${VAULT_DIR}/attachments"
 
-log_info "4. Synchronizing all structured markdown notes to vault root..."
-# Copy all notes directly to the vault root
+log_info "4. Synchronizing all structured markdown notes to vault root and notes/..."
+# Copy all structured notes to vault root
 cp -v "${NOTES_DIR}"/*.md "${VAULT_DIR}/" 2>/dev/null || true
 [[ -d "${NOTES_DIR}/.obsidian" ]] && cp -r "${NOTES_DIR}/.obsidian" "${VAULT_DIR}/" 2>/dev/null || true
 [[ -d "${NOTES_DIR}/attachments" ]] && cp -r "${NOTES_DIR}/attachments" "${VAULT_DIR}/" 2>/dev/null || true
+
+# Also copy all notes into notes/ subdirectory for Obsidian clients configured with a notes/ subfolder
+cp -v "${NOTES_DIR}"/*.md "${VAULT_DIR}/notes/" 2>/dev/null || true
+
+# Populate legacy-named files in notes/ for clients with existing file references
+cp "${NOTES_DIR}/00 - Homelab Hub.md" "${VAULT_DIR}/notes/00 - Homelab Overview & Architecture.md" 2>/dev/null || true
+cp "${NOTES_DIR}/02 - Service - Vaultwarden.md" "${VAULT_DIR}/notes/Service - Vaultwarden.md" 2>/dev/null || true
+cp "${NOTES_DIR}/02 - Service - AdGuard Home.md" "${VAULT_DIR}/notes/Service - AdGuard Home.md" 2>/dev/null || true
+cp "${NOTES_DIR}/02 - Service - Uptime Kuma.md" "${VAULT_DIR}/notes/Service - Uptime Kuma.md" 2>/dev/null || true
+cp "${NOTES_DIR}/02 - Service - Firefly III Core.md" "${VAULT_DIR}/notes/Service - Firefly III Core.md" 2>/dev/null || true
+cp "${NOTES_DIR}/02 - Service - Firefly III Data Importer.md" "${VAULT_DIR}/notes/Service - Firefly III Data Importer.md" 2>/dev/null || true
+cp "${NOTES_DIR}/02 - Service - Obsidian Sync & Flatnotes.md" "${VAULT_DIR}/notes/Service - Obsidian Sync & Flatnotes.md" 2>/dev/null || true
+cp "${NOTES_DIR}/02 - Service - Beszel Server Monitoring.md" "${VAULT_DIR}/notes/Service - Beszel Server Monitoring.md" 2>/dev/null || true
+cp "${NOTES_DIR}/02 - Service - Caddy Reverse Proxy.md" "${VAULT_DIR}/notes/Service - Caddy Reverse Proxy.md" 2>/dev/null || true
+cp "${NOTES_DIR}/02 - Service - Tailscale WireGuard Mesh.md" "${VAULT_DIR}/notes/Service - Tailscale WireGuard Mesh.md" 2>/dev/null || true
+cp "${NOTES_DIR}/03 - Guide - Operations, Maintenance & Troubleshooting.md" "${VAULT_DIR}/notes/Guide - Operations, Maintenance & Troubleshooting.md" 2>/dev/null || true
+cp "${NOTES_DIR}/04 - Disaster Recovery - Backup & Off-Site Sync (Cloudflare R2).md" "${VAULT_DIR}/notes/Guide - Backup & Off-Site Sync.md" 2>/dev/null || true
+cp "${NOTES_DIR}/04 - Disaster Recovery - Disaster Recovery & Restore.md" "${VAULT_DIR}/notes/Guide - Disaster Recovery & Restore.md" 2>/dev/null || true
+cp "${NOTES_DIR}/03 - Guide - Notifications & Alerting (Telegram, Pushover, Email).md" "${VAULT_DIR}/notes/Notifications  - Telegram.md" 2>/dev/null || true
+cp "${NOTES_DIR}/03 - Guide - Beszel Multi-Node Monitoring Setup.md" "${VAULT_DIR}/notes/homelab/Beszel Monitoring Setup.md" 2>/dev/null || true
+cp "${NOTES_DIR}/03 - Guide - Obsidian Multi-Device Setup & Remotely Save.md" "${VAULT_DIR}/notes/homelab/Obsidian setup.md" 2>/dev/null || true
+
 
 log_info "5. Setting permissions for Flatnotes and WebDAV (UID 82:82)..."
 chown -R 82:82 "${HOMELAB_DIR}/data/dev2/obsidian" 2>/dev/null || true
