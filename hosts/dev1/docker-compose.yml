@@ -94,6 +94,22 @@ services:
           memory: 128M
           cpus: '0.50'
 
+  beszel_agent:
+    image: henrygd/beszel-agent:latest
+    container_name: beszel_agent
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - PORT=45876
+      - KEY=${BESZEL_KEY:-}
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.25'
+
 networks:
   homelab_net:
     driver: bridge
