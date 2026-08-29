@@ -203,7 +203,9 @@ else
     [[ -f "${TEMP_EXTRACT}/vaultwarden/config.json" ]] && cp "${TEMP_EXTRACT}/vaultwarden/config.json" "${TARGET_DIR}/data/vaultwarden/"
     [[ -f "${TEMP_EXTRACT}/vaultwarden/rsa_key.pem" ]] && cp "${TEMP_EXTRACT}/vaultwarden/rsa_key.pem" "${TARGET_DIR}/data/vaultwarden/"
     chmod 700 "${TARGET_DIR}/data/vaultwarden"
-    chmod 600 "${TARGET_DIR}/data/vaultwarden"/* 2>/dev/null || true
+    chmod 600 "${TARGET_DIR}/data/vaultwarden/db.sqlite3" 2>/dev/null || true
+    chmod 600 "${TARGET_DIR}/data/vaultwarden/config.json" 2>/dev/null || true
+    chmod 600 "${TARGET_DIR}/data/vaultwarden/rsa_key.pem" 2>/dev/null || true
     log_success "Vaultwarden files restored."
 
     # 2. Restore AdGuard Home
@@ -212,6 +214,7 @@ else
         cp -r "${TEMP_EXTRACT}/adguard/conf"/* "${TARGET_DIR}/data/adguard/conf/" 2>/dev/null || true
         chmod 700 "${TARGET_DIR}/data/adguard"
         chmod 700 "${TARGET_DIR}/data/adguard/conf"
+        chmod 600 "${TARGET_DIR}/data/adguard/conf/AdGuardHome.yaml" 2>/dev/null || true
         log_success "AdGuard Home configuration restored."
     fi
 
@@ -230,6 +233,7 @@ else
         cp "${TEMP_EXTRACT}/config/.env" "${TARGET_DIR}/.env"
         cp "${TEMP_EXTRACT}/config/.env" "${TARGET_DIR}/hosts/dev1/.env" 2>/dev/null || true
         chmod 600 "${TARGET_DIR}/.env"
+        chmod 600 "${TARGET_DIR}/hosts/dev1/.env" 2>/dev/null || true
     fi
     if [[ -f "${TEMP_EXTRACT}/config/docker-compose.yml" ]]; then
         cp "${TEMP_EXTRACT}/config/docker-compose.yml" "${TARGET_DIR}/docker-compose.yml"

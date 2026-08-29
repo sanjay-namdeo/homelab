@@ -131,5 +131,6 @@ graph TD
 - [[Service - Beszel Server Monitoring|Beszel Health Dashboard & Agent Guide]]
 - [[Guide - Backup & Off-Site Sync|Automated Backup & Cloudflare R2 Sync Guide]]
 - [[Guide - Disaster Recovery & Restore|Disaster Recovery & Bare-Metal Restore Guide]]
+- [[Disaster Recovery Runbook - dev1 (Identity, DNS & Edge Services)|dev1 Dedicated Disaster Recovery Runbook]]
 - [[Disaster Recovery Runbook - dev2 (Finance & Monitoring)|dev2 Dedicated Disaster Recovery Runbook]]
 - [[Guide - Operations, Maintenance & Troubleshooting|Operations, Monitoring & Maintenance Guide]]

@@ -169,6 +169,7 @@ After any restore operation, verify the following:
 ---
 
 ## 🔗 Related Notes
+- [[Disaster Recovery Runbook - dev1 (Identity, DNS & Edge Services)|dev1 Dedicated Disaster Recovery Runbook]]
 - [[Disaster Recovery Runbook - dev2 (Finance & Monitoring)|dev2 Dedicated Disaster Recovery Runbook]]
 - [[Guide - Backup & Off-Site Sync|Automated Backup & Snapshot Guide]]
 - [[Guide - Operations, Maintenance & Troubleshooting|Operations & Healthchecks]]

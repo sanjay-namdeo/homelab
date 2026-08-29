@@ -227,7 +227,7 @@ log_success "Pruned ${PURGED} old backup archive(s)."
 RCLONE_CONF="${HOMELAB_DIR}/data/rclone/rclone.conf"
 if command -v rclone &>/dev/null && [[ -f "${RCLONE_CONF}" ]]; then
     log_info "Syncing encrypted backups to Cloudflare R2 (r2-crypt:)..."
-    if rclone sync "${BACKUP_ROOT}" r2-crypt: --config "${RCLONE_CONF}" --no-update-modtime --fast-list --quiet; then
+    if rclone copy "${BACKUP_ROOT}" r2-crypt: --config "${RCLONE_CONF}" --no-update-modtime --fast-list --quiet; then
         log_success "Off-site encrypted sync to Cloudflare R2 complete."
     else
         log_warn "Off-site rclone sync encountered a non-fatal warning."
