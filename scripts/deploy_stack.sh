@@ -141,6 +141,8 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     mkdir -p "${HOMELAB_DIR}/data/dev2/firefly/import"
     mkdir -p "${HOMELAB_DIR}/data/dev2/obsidian/vault"
     mkdir -p "${HOMELAB_DIR}/data/dev2/obsidian/flatnotes_data"
+    mkdir -p "${HOMELAB_DIR}/data/dev2/beszel/data"
+    mkdir -p "${HOMELAB_DIR}/data/dev2/beszel/socket"
     chown -R 82:82 "${HOMELAB_DIR}/data/dev2/obsidian" 2>/dev/null || true
     chmod -R 775 "${HOMELAB_DIR}/data/dev2/obsidian" "${HOMELAB_DIR}/data/dev2/firefly/import" 2>/dev/null || true
     mkdir -p "${HOMELAB_DIR}/hosts/dev2"
@@ -193,6 +195,9 @@ FLATNOTES_AUTH_TYPE=password
 FLATNOTES_USERNAME=obsidian
 FLATNOTES_PASSWORD=${FLAT_PASS}
 FLATNOTES_SECRET_KEY=${FLAT_KEY}
+
+# Beszel Server Health Hub & Agent
+BESZEL_KEY=
 EOF
         chmod 600 "${DEV2_ENV}"
         log_success "Generated ${DEV2_ENV} (chmod 600)."
@@ -208,7 +213,8 @@ EOF
     tailscale serve --bg --https=8443 http://127.0.0.1:8081 2>/dev/null || true
     tailscale serve --bg --https=8082 http://127.0.0.1:8082 2>/dev/null || true
     tailscale serve --bg --https=8083 http://127.0.0.1:8083 2>/dev/null || true
-    log_success "Tailscale Serve configured (443 -> Firefly, 8443 -> Importer, 8082 -> WebDAV, 8083 -> Flatnotes)."
+    tailscale serve --bg --https=8090 http://127.0.0.1:8090 2>/dev/null || true
+    log_success "Tailscale Serve configured (443 -> Firefly, 8443 -> Importer, 8082 -> WebDAV, 8083 -> Flatnotes, 8090 -> Beszel Hub)."
 
     echo ""
     echo "=========================================================="
@@ -218,6 +224,7 @@ EOF
     echo " - Firefly Data Importer:  https://${TS_FQDN:-<your-tailscale-fqdn>}:8443"
     echo " - Obsidian WebDAV Sync:   https://${TS_FQDN:-<your-tailscale-fqdn>}:8082/data/"
     echo " - Obsidian Web Editor:    https://${TS_FQDN:-<your-tailscale-fqdn>}:8083"
+    echo " - Beszel Health Hub:      https://${TS_FQDN:-<your-tailscale-fqdn>}:8090"
     echo "=========================================================="
 
 else

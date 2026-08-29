@@ -78,7 +78,7 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     mkdir -p "${TEMP_DIR}/mariadb" "${TEMP_DIR}/firefly/upload" "${TEMP_DIR}/config"
 
     # 1. MariaDB Hot Dump
-    log_info "[1/5] Performing non-blocking MariaDB hot dump of 'firefly' database..."
+    log_info "[1/6] Performing non-blocking MariaDB hot dump of 'firefly' database..."
     DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
     DB_PASS=""
     if [[ -f "${DEV2_ENV}" ]]; then
@@ -104,14 +104,14 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     fi
 
     # 2. Firefly Uploaded Files (Receipts & Attachments)
-    log_info "[2/5] Archiving Firefly III uploaded files and attachments..."
+    log_info "[2/6] Archiving Firefly III uploaded files and attachments..."
     if [[ -d "${HOMELAB_DIR}/data/dev2/firefly/upload" ]]; then
         cp -a "${HOMELAB_DIR}/data/dev2/firefly/upload"/. "${TEMP_DIR}/firefly/upload/" 2>/dev/null || true
         log_success "Firefly III attachments archived."
     fi
 
     # 3. Firefly Data Importer Files & Configurations
-    log_info "[3/5] Archiving Firefly Data Importer files and configurations..."
+    log_info "[3/6] Archiving Firefly Data Importer files and configurations..."
     if [[ -d "${HOMELAB_DIR}/data/dev2/firefly/import" ]]; then
         mkdir -p "${TEMP_DIR}/firefly/import"
         cp -a "${HOMELAB_DIR}/data/dev2/firefly/import"/. "${TEMP_DIR}/firefly/import/" 2>/dev/null || true
@@ -119,15 +119,23 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     fi
 
     # 4. Obsidian Markdown Vault & Web Data
-    log_info "[4/5] Archiving Obsidian Markdown Vault and Web configuration..."
+    log_info "[4/6] Archiving Obsidian Markdown Vault and Web configuration..."
     if [[ -d "${HOMELAB_DIR}/data/dev2/obsidian" ]]; then
         mkdir -p "${TEMP_DIR}/obsidian"
         cp -a "${HOMELAB_DIR}/data/dev2/obsidian"/. "${TEMP_DIR}/obsidian/" 2>/dev/null || true
         log_success "Obsidian Markdown Vault and Flatnotes data archived."
     fi
 
-    # 5. Host Environment & Compose Definition
-    log_info "[5/5] Archiving dev2 stack definition and environment secrets..."
+    # 5. Beszel Server Monitoring Hub Data & Keys
+    log_info "[5/6] Archiving Beszel Hub data and cryptographic keys..."
+    if [[ -d "${HOMELAB_DIR}/data/dev2/beszel/data" ]]; then
+        mkdir -p "${TEMP_DIR}/beszel/data"
+        cp -a "${HOMELAB_DIR}/data/dev2/beszel/data"/. "${TEMP_DIR}/beszel/data/" 2>/dev/null || true
+        log_success "Beszel Hub metrics database and keys archived."
+    fi
+
+    # 6. Host Environment & Compose Definition
+    log_info "[6/6] Archiving dev2 stack definition and environment secrets..."
     [[ -f "${DEV2_ENV}" ]] && cp "${DEV2_ENV}" "${TEMP_DIR}/config/.env"
     [[ -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.yml"
     echo "${TARGET_HOST}" > "${TEMP_DIR}/config/host.txt"

@@ -133,7 +133,15 @@ if [[ "${IS_DEV2}" == true ]]; then
         log_success "Obsidian Markdown Vault restored."
     fi
 
-    # 4. Restore / Import MariaDB Database
+    # 4. Restore Beszel Server Monitoring Hub Data & Keys
+    if [[ -d "${TEMP_EXTRACT}/beszel" ]]; then
+        log_info "Restoring Beszel Server Monitoring Hub data and keys..."
+        mkdir -p "${TARGET_DIR}/data/dev2/beszel/data" "${TARGET_DIR}/data/dev2/beszel/socket"
+        cp -a "${TEMP_EXTRACT}/beszel/data"/. "${TARGET_DIR}/data/dev2/beszel/data/" 2>/dev/null || true
+        log_success "Beszel Server Monitoring Hub data restored."
+    fi
+
+    # 5. Restore / Import MariaDB Database
     log_info "[4/4] Processing MariaDB database snapshot..."
     if [[ -f "${TEMP_EXTRACT}/mariadb/firefly.sql" ]]; then
         RESTORE_SQL="${TARGET_DIR}/data/dev2/firefly/restored_firefly_$(date +%Y%m%d_%H%M%S).sql"

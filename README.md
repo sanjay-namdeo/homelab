@@ -22,12 +22,13 @@ graph TD
         UK["📊 Uptime Kuma (:3001 Web)"]
     end
 
-    subgraph HostDev2 ["🖥️ Host: dev2 (Finance & Obsidian Knowledge Hub)"]
-        TS_Serve["⚡ Tailscale Serve (:443, :8443, :8082, :8083 TLS)"]
+    subgraph HostDev2 ["🖥️ Host: dev2 (Finance, Knowledge Hub & Monitoring)"]
+        TS_Serve["⚡ Tailscale Serve (:443, :8443, :8082, :8083, :8090 TLS)"]
         FF["💰 Firefly III Core (:8080)"]
         FDI["📥 Data Importer (:8081)"]
         ObsDAV["📁 Obsidian WebDAV Sync (:8082)"]
         ObsWeb["📝 Obsidian Flatnotes Web (:8083)"]
+        Beszel["📊 Beszel Hub & Agent (:8090)"]
         DB[("🗄️ MariaDB Database")]
     end
 
@@ -38,12 +39,13 @@ graph TD
     Caddy -->|HTTPS :3001| UK
     TS1 -.->|DNS Port 53| AG
 
-    Client -->|HTTPS :443 / :8443 / :8082 / :8083| TS2
+    Client -->|HTTPS :443 / :8443 / :8082 / :8083 / :8090| TS2
     TS2 --> TS_Serve
     TS_Serve -->|:443| FF
     TS_Serve -->|:8443| FDI
     TS_Serve -->|:8082| ObsDAV
     TS_Serve -->|:8083| ObsWeb
+    TS_Serve -->|:8090| Beszel
     FF --> DB
     FDI --> FF
 ```
@@ -113,7 +115,7 @@ docker compose up -d
 - **AdGuard Home**: `https://dev1.<tailnet>.ts.net:8081`
 - **Uptime Kuma**: `https://dev1.<tailnet>.ts.net:3001`
 
-### Deploying on `dev2` (Firefly III & Data Importer)
+### Deploying on `dev2` (Firefly III, Obsidian & Beszel Monitoring)
 ```bash
 # Automated deployment (recommended):
 sudo bash scripts/deploy_stack.sh dev2
@@ -128,11 +130,13 @@ sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
 sudo tailscale serve --bg --https=8443 http://127.0.0.1:8081
 sudo tailscale serve --bg --https=8082 http://127.0.0.1:8082
 sudo tailscale serve --bg --https=8083 http://127.0.0.1:8083
+sudo tailscale serve --bg --https=8090 http://127.0.0.1:8090
 ```
 - **Firefly III Core**: `https://dev2.<tailnet>.ts.net`
 - **Firefly Data Importer**: `https://dev2.<tailnet>.ts.net:8443`
 - **Obsidian WebDAV Sync**: `https://dev2.<tailnet>.ts.net:8082/data/`
 - **Obsidian Flatnotes Web**: `https://dev2.<tailnet>.ts.net:8083`
+- **Beszel Server Health Hub**: `https://dev2.<tailnet>.ts.net:8090`
 
 ---
 
@@ -155,6 +159,7 @@ From any device (laptop, phone) connected to your Tailscale network:
 | **dev2** | **Firefly Data Importer** | `https://dev2.<tailnet>.ts.net:8443` | Enter Personal Access Token & import bank statements. |
 | **dev2** | **Obsidian WebDAV** | `https://dev2.<tailnet>.ts.net:8082/data/` | Configure *Remotely Save* plugin in Obsidian Desktop / Mobile. |
 | **dev2** | **Obsidian Web Editor** | `https://dev2.<tailnet>.ts.net:8083` | Log in with `obsidian` to view and edit notes in browser. |
+| **dev2** | **Beszel Health Hub** | `https://dev2.<tailnet>.ts.net:8090` | Create admin account & link systems via `/beszel_socket/beszel.sock`. |
 
 ---
 

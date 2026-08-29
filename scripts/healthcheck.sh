@@ -80,7 +80,7 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
 
     # 2. Container Service Health
     header "2. Container Service Health"
-    CONTAINERS=("firefly_app" "firefly_db" "firefly_importer" "obsidian_webdav" "obsidian_web")
+    CONTAINERS=("firefly_app" "firefly_db" "firefly_importer" "obsidian_webdav" "obsidian_web" "beszel" "beszel_agent")
     for c in "${CONTAINERS[@]}"; do
         if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
             STATUS=$(docker inspect --format='{{.State.Status}}' "${c}" 2>/dev/null || echo "unknown")
@@ -122,6 +122,12 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         else
             warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8083"
         fi
+
+        if echo "${SERVE_STATUS}" | grep -q "127.0.0.1:8090"; then
+            pass "Tailscale Serve TLS reverse proxy is active (8090 -> 127.0.0.1:8090 Beszel Hub)"
+        else
+            warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8090"
+        fi
     fi
 
     # Firefly HTTP local endpoint
@@ -161,6 +167,14 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         warn "Obsidian Flatnotes Web UI local endpoint returned status code ${FLAT_HTTP}"
     fi
 
+    # Beszel Hub local endpoint
+    BESZEL_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8090/" 2>/dev/null || echo "000")
+    if [[ "${BESZEL_HTTP}" == "200" || "${BESZEL_HTTP}" == "302" ]]; then
+        pass "Beszel Server Health Hub local HTTP endpoint is responding (http://127.0.0.1:8090/ -> HTTP ${BESZEL_HTTP})"
+    else
+        warn "Beszel Hub local endpoint returned status code ${BESZEL_HTTP}"
+    fi
+
     # HTTPS via Tailscale FQDN
     if [[ -n "${TS_FQDN}" ]]; then
         FF_TLS=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}/" 2>/dev/null || echo "000")
@@ -189,6 +203,13 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
             pass "Obsidian Flatnotes Web UI HTTPS endpoint is responding (https://${TS_FQDN}:8083/ -> HTTP ${FLAT_TLS})"
         else
             warn "Obsidian Flatnotes Web UI HTTPS endpoint returned status code ${FLAT_TLS}"
+        fi
+
+        BESZEL_TLS=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8090/" 2>/dev/null || echo "000")
+        if [[ "${BESZEL_TLS}" == "200" || "${BESZEL_TLS}" == "302" ]]; then
+            pass "Beszel Server Health Hub HTTPS endpoint is responding (https://${TS_FQDN}:8090/ -> HTTP ${BESZEL_TLS})"
+        else
+            warn "Beszel Hub HTTPS endpoint returned status code ${BESZEL_TLS}"
         fi
     fi
 
@@ -230,6 +251,12 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
             pass "Port 8083 (Obsidian Flatnotes Web UI) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
         else
             fail "Port 8083 is accessible on WAN/LAN interface (${LAN_IP})!"
+        fi
+
+        if ! nc -z -w 1 "${LAN_IP}" 8090 2>/dev/null; then
+            pass "Port 8090 (Beszel Hub) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+        else
+            fail "Port 8090 is accessible on WAN/LAN interface (${LAN_IP})!"
         fi
 
         if ! nc -z -w 1 "${LAN_IP}" 3306 2>/dev/null; then
