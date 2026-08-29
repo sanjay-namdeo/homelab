@@ -33,7 +33,7 @@ fi
 cd "${HOMELAB_DIR}"
 
 log_info "1. Pulling latest documentation notes from git..."
-git pull || log_warn "Git pull skipped or already up to date."
+GIT_SSH_COMMAND="ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new" git pull || log_warn "Git pull skipped or already up to date."
 
 if [[ ! -d "${NOTES_DIR}" ]]; then
     log_error "Notes directory ${NOTES_DIR} not found!"
@@ -53,6 +53,7 @@ chmod -R 777 "${HOMELAB_DIR}/data/dev2/obsidian"
 
 log_info "5. Resetting Flatnotes search index to trigger full rescan..."
 rm -rf "${INDEX_DIR:?}"/* 2>/dev/null || true
+rm -rf "${VAULT_DIR}/.flatnotes" 2>/dev/null || true
 
 log_info "6. Restarting Flatnotes and WebDAV containers..."
 if docker ps -a --format '{{.Names}}' | grep -q "^obsidian_web$"; then
