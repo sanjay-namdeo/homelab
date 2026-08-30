@@ -127,7 +127,7 @@ if [[ "${IS_DEV2}" == true ]]; then
     fi
 
     # 2. Restore Obsidian Markdown Vault & Web Data
-    log_info "[3/3] Restoring Obsidian Markdown Vault and Beszel Hub data..."
+    log_info "[3/3] Restoring Obsidian Markdown Vault & Beszel Hub data..."
     if [[ -d "${TEMP_EXTRACT}/obsidian" ]]; then
         log_info "Restoring Obsidian Markdown Vault and Web configuration..."
         mkdir -p "${TARGET_DIR}/data/dev2/obsidian"

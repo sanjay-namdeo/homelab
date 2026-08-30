@@ -26,7 +26,7 @@ A production-grade, resource-efficient Obsidian note-taking and Beszel server he
   - `obsidian_web`: Max 128 MB RAM / 0.50 vCPU (~50 MB idle)
   - `beszel`: Max 128 MB RAM / 0.50 vCPU (~15 MB idle)
   - `beszel_agent`: Max 64 MB RAM / 0.25 vCPU (~8 MB idle)
-  - *Full Stack Idle Footprint*: ~70–80 MB total RAM across all four containers.
+  - *Full Stack Idle Footprint*: ~75 MB total RAM across all four containers.
 
 ---
 
