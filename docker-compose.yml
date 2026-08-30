@@ -46,6 +46,12 @@ services:
       - /opt/homelab/data/adguard/conf:/opt/adguardhome/conf
     networks:
       - homelab_net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/login.html"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     deploy:
       resources:
         limits:
@@ -72,6 +78,12 @@ services:
       - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock:ro
     networks:
       - homelab_net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     deploy:
       resources:
         limits:
@@ -110,6 +122,12 @@ services:
       - PORT=45876
       - KEY=${BESZEL_KEY:-}
       - SERVICE_PATTERNS=${SERVICE_PATTERNS:-docker*,tailscale*,ssh*,fail2ban*,homelab*}
+    healthcheck:
+      test: ["CMD", "/agent", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     deploy:
       resources:
         limits:

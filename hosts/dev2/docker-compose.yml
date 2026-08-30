@@ -14,6 +14,12 @@ services:
       - "127.0.0.1:8082:80"
     networks:
       - dev2_net
+    healthcheck:
+      test: ["CMD", "pidof", "httpd"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     deploy:
       resources:
         limits:
@@ -57,6 +63,12 @@ services:
       - /opt/homelab/data/dev2/beszel/socket:/beszel_socket
     networks:
       - dev2_net
+    healthcheck:
+      test: ["CMD", "/beszel", "health", "--url", "http://127.0.0.1:8090"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     deploy:
       resources:
         limits:
@@ -82,6 +94,12 @@ services:
       - KEY_FILE=/beszel_data/id_ed25519.pub
       - KEY=${BESZEL_KEY:-}
       - SERVICE_PATTERNS=${SERVICE_PATTERNS:-docker*,tailscale*,ssh*,fail2ban*,homelab*}
+    healthcheck:
+      test: ["CMD", "/agent", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     deploy:
       resources:
         limits:
