@@ -4,6 +4,7 @@ services:
     container_name: vaultwarden
     restart: unless-stopped
     environment:
+      - TZ=${TZ:-Asia/Kolkata}
       - WEBSOCKET_ENABLED=true
       - SIGNUPS_ALLOWED=${SIGNUPS_ALLOWED:-false}
       - INVITATIONS_ALLOWED=false
@@ -22,6 +23,9 @@ services:
       - SMTP_ACCEPT_INVALID_HOSTNAMES=false
     volumes:
       - /opt/homelab/data/vaultwarden:/data
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     networks:
       - homelab_net
     ports:
@@ -36,6 +40,8 @@ services:
     image: adguard/adguardhome:latest
     container_name: adguardhome
     restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Kolkata}
     ports:
       - "${TAILSCALE_IP:-127.0.0.1}:53:53/tcp"
       - "${TAILSCALE_IP:-127.0.0.1}:53:53/udp"
@@ -44,6 +50,9 @@ services:
     volumes:
       - /opt/homelab/data/adguard/work:/opt/adguardhome/work
       - /opt/homelab/data/adguard/conf:/opt/adguardhome/conf
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     networks:
       - homelab_net
     healthcheck:
@@ -63,6 +72,7 @@ services:
     container_name: caddy
     restart: unless-stopped
     environment:
+      - TZ=${TZ:-Asia/Kolkata}
       - TAILSCALE_FQDN=${TAILSCALE_FQDN}
     ports:
       - "80:80"
@@ -76,6 +86,9 @@ services:
       - /opt/homelab/data/caddy/data:/data
       - /opt/homelab/data/caddy/config:/config
       - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock:ro
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     networks:
       - homelab_net
     healthcheck:
@@ -94,10 +107,15 @@ services:
     image: louislam/uptime-kuma:1
     container_name: uptime-kuma
     restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Kolkata}
     volumes:
       - /opt/homelab/data/uptime-kuma:/app/data
       - /opt/homelab/hosts/dev1/uptime-kuma/smtp.js:/app/server/notification-providers/smtp.js:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     networks:
       - homelab_net
     deploy:
@@ -118,7 +136,11 @@ services:
       - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket:ro
       - /var/run/systemd/private:/var/run/systemd/private:ro
       - /run/systemd/system:/run/systemd/system:ro
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
+      - TZ=${TZ:-Asia/Kolkata}
       - PORT=45876
       - KEY=${BESZEL_KEY:-}
       - SERVICE_PATTERNS=${SERVICE_PATTERNS:-docker*,tailscale*,ssh*,fail2ban*,homelab*}

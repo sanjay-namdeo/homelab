@@ -278,7 +278,7 @@ else
             cp "${HOMELAB_DIR}/hosts/dev1/.env.example" "${HOMELAB_DIR}/.env"
         else
             cat > "${HOMELAB_DIR}/.env" << 'EOF'
-TZ=UTC
+TZ=Asia/Kolkata
 SIGNUPS_ALLOWED=true
 EOF
         fi

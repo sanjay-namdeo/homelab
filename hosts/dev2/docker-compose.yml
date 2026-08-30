@@ -4,12 +4,16 @@ services:
     container_name: obsidian_webdav
     restart: unless-stopped
     environment:
+      - TZ=${TZ:-Asia/Kolkata}
       - AUTH_TYPE=Basic
       - USERNAME=${WEBDAV_USERNAME:-obsidian}
       - PASSWORD=${WEBDAV_PASSWORD}
       - LOCATION=/data
     volumes:
       - /opt/homelab/data/dev2/obsidian/vault:/var/lib/dav/data
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     ports:
       - "127.0.0.1:8082:80"
     networks:
@@ -31,6 +35,7 @@ services:
     container_name: obsidian_web
     restart: unless-stopped
     environment:
+      - TZ=${TZ:-Asia/Kolkata}
       - PUID=82
       - PGID=82
       - FLATNOTES_PATH=/data
@@ -42,6 +47,9 @@ services:
     volumes:
       - /opt/homelab/data/dev2/obsidian/vault:/data
       - /opt/homelab/data/dev2/obsidian/flatnotes_data:/app/data
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     ports:
       - "127.0.0.1:8083:8080"
     networks:
@@ -56,11 +64,16 @@ services:
     image: henrygd/beszel:latest
     container_name: beszel
     restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Kolkata}
     ports:
       - "127.0.0.1:8090:8090"
     volumes:
       - /opt/homelab/data/dev2/beszel/data:/beszel_data
       - /opt/homelab/data/dev2/beszel/socket:/beszel_socket
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     networks:
       - dev2_net
     healthcheck:
@@ -89,7 +102,11 @@ services:
       - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket:ro
       - /var/run/systemd/private:/var/run/systemd/private:ro
       - /run/systemd/system:/run/systemd/system:ro
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
+      - TZ=${TZ:-Asia/Kolkata}
       - LISTEN=/beszel_socket/beszel.sock
       - KEY_FILE=/beszel_data/id_ed25519.pub
       - KEY=${BESZEL_KEY:-}
