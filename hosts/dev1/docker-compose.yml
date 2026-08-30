@@ -109,7 +109,7 @@ services:
     environment:
       - PORT=45876
       - KEY=${BESZEL_KEY:-}
-      - SERVICE_PATTERNS=${SERVICE_PATTERNS:-docker*,tailscale*,ssh*,cron*,fail2ban*,homelab*}
+      - SERVICE_PATTERNS=${SERVICE_PATTERNS:-docker*,tailscale*,ssh*,fail2ban*,homelab*}
     deploy:
       resources:
         limits:

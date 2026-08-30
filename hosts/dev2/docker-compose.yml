@@ -81,7 +81,7 @@ services:
       - LISTEN=/beszel_socket/beszel.sock
       - KEY_FILE=/beszel_data/id_ed25519.pub
       - KEY=${BESZEL_KEY:-}
-      - SERVICE_PATTERNS=${SERVICE_PATTERNS:-docker*,tailscale*,ssh*,cron*,fail2ban*,homelab*}
+      - SERVICE_PATTERNS=${SERVICE_PATTERNS:-docker*,tailscale*,ssh*,fail2ban*,homelab*}
     deploy:
       resources:
         limits:
