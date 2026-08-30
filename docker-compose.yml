@@ -99,11 +99,17 @@ services:
     container_name: beszel_agent
     restart: unless-stopped
     network_mode: host
+    security_opt:
+      - apparmor:unconfined
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket:ro
+      - /var/run/systemd/private:/var/run/systemd/private:ro
+      - /run/systemd/system:/run/systemd/system:ro
     environment:
       - PORT=45876
       - KEY=${BESZEL_KEY:-}
+      - SERVICE_PATTERNS=${SERVICE_PATTERNS:-docker*,tailscale*,ssh*,cron*,fail2ban*,homelab*}
     deploy:
       resources:
         limits:
