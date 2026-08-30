@@ -108,6 +108,76 @@ else
     log_info "[3/6] Docker Engine is already installed."
 fi
 
+# Configure Docker daemon log rotation
+if [ ! -f /etc/docker/daemon.json ]; then
+    log_info "Configuring Docker daemon log limits (10MB x 3)..."
+    mkdir -p /etc/docker
+    cat > /etc/docker/daemon.json << 'EOF'
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+    systemctl reload docker 2>/dev/null || systemctl restart docker
+fi
+
+# Configure ZRAM in-memory compressed swap
+if ! dpkg -l | grep -q "systemd-zram-generator"; then
+    log_info "Configuring ZRAM in-memory compressed swap..."
+    apt-get install -y systemd-zram-generator 2>/dev/null || true
+    cat > /etc/systemd/zram-generator.conf << 'EOF'
+[zram0]
+zram-size = min(ram / 2, 2048)
+compression-algorithm = zstd
+swap-priority = 100
+EOF
+    systemctl daemon-reload
+    systemctl restart systemd-zram-setup@zram0.service 2>/dev/null || true
+fi
+
+# Configure Automated Daily Backup Systemd Timer
+if [ ! -f /etc/systemd/system/homelab-backup.timer ]; then
+    log_info "Configuring automated daily backup systemd timer..."
+    cat > /etc/systemd/system/homelab-backup.service << 'EOF'
+[Unit]
+Description=Homelab Daily Automated Backup & Off-Site Sync
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/homelab
+ExecStart=/bin/bash /opt/homelab/scripts/backup_homelab.sh
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    cat > /etc/systemd/system/homelab-backup.timer << 'EOF'
+[Unit]
+Description=Run Homelab Daily Backup at 3:00 AM UTC
+Persistent=true
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable --now homelab-backup.timer
+    log_success "Automated daily backup timer enabled (03:00 UTC)."
+fi
+
 # ------------------------------------------------------------------------------
 # 4. Install & Check Tailscale
 # ------------------------------------------------------------------------------

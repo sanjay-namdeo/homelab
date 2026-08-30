@@ -74,7 +74,7 @@ sudo tailscale serve --bg --https=8090 http://127.0.0.1:8090
 
 ## 📊 Beszel: Overall Server Health & Resource Dashboard
 
-Beszel is a lightweight, real-time server monitoring hub and agent that tracks CPU, Memory, Disk, Network, temperature, and individual Docker container resource utilization.
+Beszel is a lightweight, real-time server monitoring hub and agent that tracks CPU, Memory, ZRAM Swap, Disk, Network, host `systemd` services (`docker`, `tailscaled`, `ssh`, `fail2ban`), and individual Docker container resource utilization.
 
 ### 1. Dashboard Access & Initial Admin Setup
 1. Open the Beszel dashboard in any browser while connected to Tailscale:
@@ -89,13 +89,13 @@ Beszel is a lightweight, real-time server monitoring hub and agent that tracks C
    - **Port**: `45876` *(ignored when using Unix socket)*
    - **Public Key**: Pre-matched with `data/dev2/beszel/data/id_ed25519.pub` and `BESZEL_KEY` in `hosts/dev2/.env`.
 3. Click **"Add"**.
-4. The dashboard immediately starts streaming live telemetry (CPU, RAM, Disk I/O, Network throughput, and per-container Docker metrics) with zero external port exposure!
+4. The dashboard immediately starts streaming live telemetry (CPU, RAM, ZRAM, Disk I/O, Network throughput, 4/4 host systemd services, and per-container Docker metrics) with zero external port exposure!
 
 ### 3. Monitoring Other Nodes (e.g., `dev1` or Remote VPS)
 To monitor additional servers on your tailnet:
 1. In the Beszel UI, click **"Add System"** and enter the remote node name and Tailscale IP (or FQDN).
 2. Copy the generated Docker Compose snippet containing the Hub's public key.
-3. Deploy `henrygd/beszel-agent:latest` on the target machine pointing back to the Hub over Tailscale!
+3. Deploy `henrygd/beszel-agent:latest` on the target machine with D-Bus volume mounts pointing back to the Hub over Tailscale!
 
 ---
 

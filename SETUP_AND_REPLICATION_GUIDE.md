@@ -662,15 +662,17 @@ sudo bash /opt/homelab/scripts/backup_homelab.sh
   2. **Local Rotation**: Purges local backups older than 14 days.
   3. **Zero-Knowledge Off-Site Sync**: Uploads the archive to **Cloudflare R2 Object Storage** via `rclone` with client-side **AES-256-GCM encryption** (`r2-crypt:`).
 
-#### Automating Backups (Daily at 3:00 AM)
-- **Option A: Systemd Timer (Recommended on Ubuntu 24.04)**:
-  ```bash
-  sudo systemctl enable --now homelab-backup.timer
-  ```
-- **Option B: Cron**:
-  ```bash
-  sudo crontab -l 2>/dev/null | { cat; echo "0 3 * * * /bin/bash /opt/homelab/scripts/backup_homelab.sh > /dev/null 2>&1"; } | sudo crontab -
-  ```
+#### Automating Backups (Daily at 3:00 AM UTC via Systemd Timer)
+Both `dev1` and `dev2` use native `systemd` timers (`homelab-backup.timer` and `homelab-backup.service`) with `Persistent=true` (ensures missed backups run immediately if server was offline):
+
+```bash
+# Verify active backup timers
+systemctl status homelab-backup.timer
+systemctl list-timers homelab-backup.timer
+
+# View execution logs
+journalctl -u homelab-backup.service -n 50
+```
 
 ---
 
