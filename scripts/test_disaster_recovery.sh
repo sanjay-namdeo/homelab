@@ -105,7 +105,7 @@ log_success "Golden test state successfully initialized."
 
 header "PHASE 2: Executing Point-in-Time Automated Backups & Offsite Sync"
 
-export PATH="/home/sanjay-namdeo/.local/bin:$PATH"
+export PATH="/home/${SYSTEM_USER:-$(whoami)}/.local/bin:$PATH"
 RCLONE_CONF="${HOMELAB_DIR}/data/rclone/rclone.conf"
 HAVE_R2=false
 if command -v rclone &>/dev/null && [[ -f "${RCLONE_CONF}" ]]; then
@@ -146,12 +146,10 @@ rm -rf "${HOMELAB_DIR}/data/obsidian"
 rm -rf "${HOMELAB_DIR}/data/caddy"
 rm -rf "${HOMELAB_DIR}/data/dev2"
 rm -f "${HOMELAB_DIR}/.env"
-rm -f "${HOMELAB_DIR}/hosts/dev1/.env"
-rm -f "${HOMELAB_DIR}/hosts/dev2/.env"
 rm -rf "${HOMELAB_DIR}/data/backups"
 
 # Verification of destruction
-if [[ ! -d "${HOMELAB_DIR}/data/vaultwarden" && ! -d "${HOMELAB_DIR}/data/dev2" && ! -f "${HOMELAB_DIR}/hosts/dev1/.env" ]]; then
+if [[ ! -d "${HOMELAB_DIR}/data/vaultwarden" && ! -d "${HOMELAB_DIR}/data/dev2" && ! -f "${HOMELAB_DIR}/.env" ]]; then
     log_success "Disaster simulated: 100% of runtime data, secrets, and local backups are wiped."
 else
     log_error "Failed to simulate disaster state."
@@ -263,7 +261,7 @@ else:
         errors += 1
 
 # Check permissions
-env_files = [f'{HOMELAB_DIR}/hosts/dev1/.env', f'{HOMELAB_DIR}/hosts/dev2/.env']
+env_files = [f'{HOMELAB_DIR}/.env']
 for ef in env_files:
     if os.path.exists(ef):
         mode = oct(os.stat(ef).st_mode & 0o777)

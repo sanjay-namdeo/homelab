@@ -50,7 +50,7 @@ sudo bash /opt/homelab/scripts/healthcheck.sh
 
 ### Step 1: Deploy Homelab Stack
 ```bash
-sudo git clone git@github.com:sanjay-namdeo/homelab.git /opt/homelab
+sudo git clone git@github.com:${GITHUB_USERNAME}/homelab.git /opt/homelab
 cd /opt/homelab
 sudo bash scripts/deploy_stack.sh
 ```

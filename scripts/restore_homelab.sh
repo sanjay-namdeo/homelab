@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-export PATH="/home/sanjay-namdeo/.local/bin:/usr/local/bin:$PATH"
+export PATH="/home/${SYSTEM_USER:-$(whoami)}/.local/bin:/usr/local/bin:$PATH"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -118,9 +118,13 @@ if [[ "${IS_DEV2}" == true ]]; then
     # 1. Restore Environment & Compose definitions
     log_info "[2/4] Restoring dev2 environment secrets and compose file..."
     if [[ -f "${TEMP_EXTRACT}/config/.env" ]]; then
-        cp "${TEMP_EXTRACT}/config/.env" "${TARGET_DIR}/hosts/dev2/.env"
-        chmod 600 "${TARGET_DIR}/hosts/dev2/.env"
-        log_success "Environment secrets restored (${TARGET_DIR}/hosts/dev2/.env)."
+        cp "${TEMP_EXTRACT}/config/.env" "${TARGET_DIR}/.env"
+        chmod 600 "${TARGET_DIR}/.env"
+        # Recreate host symlinks (same as dev1 restore path)
+        mkdir -p "${TARGET_DIR}/hosts/dev1" "${TARGET_DIR}/hosts/dev2"
+        ln -sf "${TARGET_DIR}/.env" "${TARGET_DIR}/hosts/dev1/.env"
+        ln -sf "${TARGET_DIR}/.env" "${TARGET_DIR}/hosts/dev2/.env"
+        log_success "Environment secrets restored to root .env with host symlinks (${TARGET_DIR}/.env)."
     fi
     if [[ -f "${TEMP_EXTRACT}/config/docker-compose.yml" ]]; then
         cp "${TEMP_EXTRACT}/config/docker-compose.yml" "${TARGET_DIR}/hosts/dev2/docker-compose.yml"
@@ -245,13 +249,12 @@ else
     log_info "[5/5] Restoring environment and reverse proxy configuration..."
     if [[ -f "${TEMP_EXTRACT}/config/.env" ]]; then
         cp "${TEMP_EXTRACT}/config/.env" "${TARGET_DIR}/.env"
-        cp "${TEMP_EXTRACT}/config/.env" "${TARGET_DIR}/hosts/dev1/.env" 2>/dev/null || true
         chmod 600 "${TARGET_DIR}/.env"
-        chmod 600 "${TARGET_DIR}/hosts/dev1/.env" 2>/dev/null || true
-    fi
-    if [[ -f "${TEMP_EXTRACT}/config/.env.dev1" ]]; then
-        cp "${TEMP_EXTRACT}/config/.env.dev1" "${TARGET_DIR}/hosts/dev1/.env"
-        chmod 600 "${TARGET_DIR}/hosts/dev1/.env"
+        # Recreate symlinks for host directories
+        mkdir -p "${TARGET_DIR}/hosts/dev1" "${TARGET_DIR}/hosts/dev2"
+        ln -sf "${TARGET_DIR}/.env" "${TARGET_DIR}/hosts/dev1/.env"
+        ln -sf "${TARGET_DIR}/.env" "${TARGET_DIR}/hosts/dev2/.env"
+        log_success "Environment secrets restored to root .env (${TARGET_DIR}/.env) with host symlinks."
     fi
     if [[ -f "${TEMP_EXTRACT}/config/docker-compose.yml" ]]; then
         cp "${TEMP_EXTRACT}/config/docker-compose.yml" "${TARGET_DIR}/docker-compose.yml"

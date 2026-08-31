@@ -78,7 +78,7 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     # DEV2 DIAGNOSTIC SUITE (Obsidian & Beszel Monitoring Hub)
     # ==========================================================================
 
-    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
+    ROOT_ENV="${HOMELAB_DIR}/.env"
 
     # 2. Container Service Health
     header "2. Container Service Health"
@@ -197,12 +197,12 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         fi
     fi
 
-    if [[ -f "${DEV2_ENV}" ]]; then
-        ENV_PERMS=$(stat -c "%a" "${DEV2_ENV}" 2>/dev/null || echo "")
+    if [[ -f "${ROOT_ENV}" ]]; then
+        ENV_PERMS=$(stat -c "%a" "${ROOT_ENV}" 2>/dev/null || echo "")
         if [[ "${ENV_PERMS}" == "600" ]]; then
-            pass "dev2 .env secret permissions are strictly locked (0600)"
+            pass "Root .env secret permissions are strictly locked (0600)"
         else
-            warn "dev2 .env secret permissions: ${ENV_PERMS} (recommended: 0600)"
+            warn "Root .env secret permissions: ${ENV_PERMS} (recommended: 0600)"
         fi
     fi
 
@@ -266,11 +266,8 @@ else
     fi
 
     # Obsidian WebDAV Sync (HTTPS / HTTP)
-    DEV1_ENV="${HOMELAB_DIR}/hosts/dev1/.env"
     DAV_USER="obsidian"
-    DAV_PASS=""
-    [[ -f "${DEV1_ENV}" ]] && DAV_PASS=$(grep '^WEBDAV_PASSWORD=' "${DEV1_ENV}" | cut -d= -f2- || echo "")
-    [[ -z "${DAV_PASS}" && -f "${HOMELAB_DIR}/.env" ]] && DAV_PASS=$(grep '^WEBDAV_PASSWORD=' "${HOMELAB_DIR}/.env" | cut -d= -f2- || echo "")
+    DAV_PASS=$(grep '^WEBDAV_PASSWORD=' "${HOMELAB_DIR}/.env" | cut -d= -f2- || echo "")
 
     if [[ -n "${TS_FQDN}" ]]; then
         DAV_TLS=$(curl -s -k -u "${DAV_USER}:${DAV_PASS}" -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8082/data/" 2>/dev/null || echo "000")

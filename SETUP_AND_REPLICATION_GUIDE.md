@@ -42,9 +42,9 @@ graph TD
 To replicate this exact setup on any fresh Ubuntu (22.04 / 24.04 LTS) or Debian server:
 
 ### Step 1: Baseline Server Hardening (Optional)
-If provisioning a brand-new cloud instance or bare-metal Ubuntu machine, you can run baseline hardening and performance tuning from [`ubuntu-scripts`](https://github.com/sanjay-namdeo/ubuntu-scripts):
+If provisioning a brand-new cloud instance or bare-metal Ubuntu machine, you can run baseline hardening and performance tuning from [`ubuntu-scripts`](https://github.com/${GITHUB_USERNAME}/ubuntu-scripts):
 ```bash
-git clone https://github.com/sanjay-namdeo/ubuntu-scripts.git /tmp/ubuntu-scripts
+git clone https://github.com/${GITHUB_USERNAME}/ubuntu-scripts.git /tmp/ubuntu-scripts
 sudo bash /tmp/ubuntu-scripts/setup_server.sh
 sudo bash /tmp/ubuntu-scripts/tune_performance.sh
 # Optional: Change SSH port
@@ -54,7 +54,7 @@ rm -rf /tmp/ubuntu-scripts
 
 ### Step 2: Clone Homelab Repository
 ```bash
-sudo git clone git@github.com:sanjay-namdeo/homelab.git /opt/homelab
+sudo git clone git@github.com:${GITHUB_USERNAME}/homelab.git /opt/homelab
 cd /opt/homelab
 ```
 
@@ -671,7 +671,7 @@ If a host is terminated or lost, restore in minutes:
 
 #### Step 1: Clone Homelab Repository
 ```bash
-sudo git clone git@github.com:sanjay-namdeo/homelab.git /opt/homelab
+sudo git clone git@github.com:${GITHUB_USERNAME}/homelab.git /opt/homelab
 cd /opt/homelab
 ```
 

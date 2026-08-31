@@ -8,14 +8,14 @@
 
 set -euo pipefail
 
-export PATH="/home/sanjay-namdeo/.local/bin:/usr/local/bin:$PATH"
+export PATH="/home/${SYSTEM_USER:-$(whoami)}/.local/bin:/usr/local/bin:$PATH"
 
 # Source environment configuration if present
-DEV2_ENV="/opt/homelab/hosts/dev2/.env"
-if [[ -f "${DEV2_ENV}" ]]; then
+ROOT_ENV="/opt/homelab/.env"
+if [[ -f "${ROOT_ENV}" ]]; then
     set -a
     # shellcheck disable=SC1090
-    source "${DEV2_ENV}"
+    source "${ROOT_ENV}"
     set +a
 fi
 
@@ -26,7 +26,7 @@ WEBDAV_USER="${WEBDAV_USERNAME:-obsidian}"
 WEBDAV_PASS="${WEBDAV_PASSWORD:-}"
 
 if [[ -z "${WEBDAV_PASS}" ]]; then
-    echo "[ERROR] WEBDAV_PASSWORD is not set in environment or ${DEV2_ENV}" >&2
+    echo "[ERROR] WEBDAV_PASSWORD is not set in environment or ${ROOT_ENV}" >&2
     exit 1
 fi
 

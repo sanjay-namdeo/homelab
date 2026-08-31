@@ -219,18 +219,52 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     chmod -R 775 "${HOMELAB_DIR}/data/dev2/obsidian" 2>/dev/null || true
     mkdir -p "${HOMELAB_DIR}/hosts/dev2"
 
-    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
-    if [[ ! -f "${DEV2_ENV}" ]]; then
-        log_info "Generating secure secrets for dev2 .env..."
+    ROOT_ENV="${HOMELAB_DIR}/.env"
+    if [[ ! -f "${ROOT_ENV}" ]]; then
+        log_info "Generating secure secrets for root .env..."
         DAV_PASS=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
         FLAT_PASS=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
         FLAT_KEY=$(openssl rand -hex 32)
         DAV_AUTH=$(echo -n "obsidian:${DAV_PASS}" | base64)
-        cat > "${DEV2_ENV}" << EOF
-# Environment Configuration (dev2)
+        cat > "${ROOT_ENV}" << EOF
+# ==============================================================================
+# Homelab Environment Configuration — Single Source of Truth
+# ==============================================================================
+# All hosts (dev1, dev2) and all scripts source this single file.
+# hosts/dev1/.env and hosts/dev2/.env are symlinks to this file.
+# ==============================================================================
 TZ=Asia/Kolkata
 
-# Obsidian WebDAV Sync & Flatnotes Web Editor
+# Vaultwarden
+SIGNUPS_ALLOWED=true
+INVITATIONS_ALLOWED=false
+WEBSOCKET_ENABLED=true
+
+# Tailscale Network Settings (dev1)
+TAILSCALE_IP=
+TAILSCALE_HOSTNAME=
+TAILNET_NAME=
+TAILSCALE_FQDN=
+
+# Tailscale Network Settings (dev2 — multi-host)
+DEV1_TAILSCALE_FQDN=${DEV1_TAILSCALE_FQDN:-dev1.${TAILNET_NAME:-yourtailnet.ts.net}}
+DEV1_TAILSCALE_IP=${DEV1_TAILSCALE_IP:-}
+DEV2_TAILSCALE_FQDN=${DEV2_TAILSCALE_FQDN:-dev2.${TAILNET_NAME:-yourtailnet.ts.net}}
+DEV2_TAILSCALE_IP=${DEV2_TAILSCALE_IP:-127.0.0.1}
+
+# SMTP Configuration (Brevo — shared by Vaultwarden and Gatus)
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_SECURITY=starttls
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_FROM=
+SMTP_FROM_NAME=Homelab
+SMTP_TIMEOUT=15
+SMTP_AUTH_MECHANISM=Plain
+ALERT_EMAIL=
+
+# Obsidian WebDAV (dev1) & Flatnotes (dev2)
 WEBDAV_USERNAME=obsidian
 WEBDAV_PASSWORD=${DAV_PASS}
 WEBDAV_BASIC_AUTH=${DAV_AUTH}
@@ -240,30 +274,25 @@ FLATNOTES_USERNAME=obsidian
 FLATNOTES_PASSWORD=${FLAT_PASS}
 FLATNOTES_SECRET_KEY=${FLAT_KEY}
 
-# Beszel Server Health Hub & Agent
+# Beszel Server Monitoring
 BESZEL_KEY=
 
-# Tailscale Multi-Host Network Settings
-DEV1_TAILSCALE_FQDN=${DEV1_TAILSCALE_FQDN:-dev1.${TAILNET_NAME:-yourtailnet.ts.net}}
-DEV1_TAILSCALE_IP=${DEV1_TAILSCALE_IP:-}
-DEV2_TAILSCALE_FQDN=${DEV2_TAILSCALE_FQDN:-dev2.${TAILNET_NAME:-yourtailnet.ts.net}}
-DEV2_TAILSCALE_IP=${DEV2_TAILSCALE_IP:-127.0.0.1}
-
-# Gatus Service Health Dashboard & Brevo SMTP Alerting Configuration
-SMTP_HOST=smtp-relay.brevo.com
-SMTP_PORT=587
-SMTP_USERNAME=
-SMTP_PASSWORD=
-SMTP_FROM=
-ALERT_EMAIL=
+# Cloudflare R2 Encrypted Off-Site Backup
+R2_ACCOUNT_ID=
+R2_BUCKET_NAME=homelab
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+BACKUP_ENCRYPTION_KEY=
 EOF
-        chmod 600 "${DEV2_ENV}"
-        log_success "Generated ${DEV2_ENV} (chmod 600)."
+        chmod 600 "${ROOT_ENV}"
+        log_success "Generated ${ROOT_ENV} (chmod 600)."
     fi
+    # Ensure host symlinks point to root .env
+    ln -sf "${HOMELAB_DIR}/.env" "${HOMELAB_DIR}/hosts/dev2/.env" 2>/dev/null || true
 
     # 6. Launch dev2 stack & configure Tailscale Serve
     log_info "[6/6] Launching dev2 Docker stack..."
-    docker compose -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" up -d --remove-orphans
+    docker compose -p dev2 -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" up -d --remove-orphans
     log_success "dev2 Docker stack started."
 
     log_info "Configuring Tailscale Serve for HTTPS termination..."
@@ -307,9 +336,9 @@ EOF
         chmod 600 "${HOMELAB_DIR}/.env"
     fi
 
-    # Copy to hosts/dev1/.env for consistency
+    # Ensure hosts/dev1/.env is a symlink to root .env
     mkdir -p "${HOMELAB_DIR}/hosts/dev1"
-    [[ ! -f "${HOMELAB_DIR}/hosts/dev1/.env" ]] && cp "${HOMELAB_DIR}/.env" "${HOMELAB_DIR}/hosts/dev1/.env" && chmod 600 "${HOMELAB_DIR}/hosts/dev1/.env"
+    ln -sf "${HOMELAB_DIR}/.env" "${HOMELAB_DIR}/hosts/dev1/.env" 2>/dev/null || true
 
     TS_HOSTNAME=$(echo "${TS_FQDN}" | cut -d. -f1)
     TS_TAILNET=$(echo "${TS_FQDN}" | cut -d. -f2-)
@@ -368,7 +397,7 @@ EOF
 
     # 6. Launch dev1 stack
     log_info "[6/6] Launching dev1 Docker container stack..."
-    docker compose -f "${HOMELAB_DIR}/hosts/dev1/docker-compose.yml" up -d --remove-orphans
+    docker compose -p homelab -f "${HOMELAB_DIR}/hosts/dev1/docker-compose.yml" up -d --remove-orphans
     log_success "Docker containers started successfully!"
 
     echo ""

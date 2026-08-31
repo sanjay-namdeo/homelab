@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-export PATH="/home/sanjay-namdeo/.local/bin:/usr/local/bin:$PATH"
+export PATH="/home/${SYSTEM_USER:-$(whoami)}/.local/bin:/usr/local/bin:$PATH"
 
 HOMELAB_DIR="/opt/homelab"
 BACKUP_ROOT="${HOMELAB_DIR}/data/backups"
@@ -125,8 +125,8 @@ src.close()
 
     # 4. Host Environment & Compose Definition
     log_info "[4/4] Archiving dev2 stack definition and environment secrets..."
-    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
-    [[ -f "${DEV2_ENV}" ]] && cp "${DEV2_ENV}" "${TEMP_DIR}/config/.env"
+    ROOT_ENV="${HOMELAB_DIR}/.env"
+    [[ -f "${ROOT_ENV}" ]] && cp "${ROOT_ENV}" "${TEMP_DIR}/config/.env"
     [[ -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.yml"
     echo "${TARGET_HOST}" > "${TEMP_DIR}/config/host.txt"
 
@@ -184,7 +184,6 @@ src.close()
     # 5. Stack Definitions & Secrets
     log_info "[5/5] Archiving stack definition files..."
     [[ -f "${HOMELAB_DIR}/.env" ]] && cp "${HOMELAB_DIR}/.env" "${TEMP_DIR}/config/.env"
-    [[ -f "${HOMELAB_DIR}/hosts/dev1/.env" ]] && cp "${HOMELAB_DIR}/hosts/dev1/.env" "${TEMP_DIR}/config/.env.dev1"
     [[ -f "${HOMELAB_DIR}/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.yml"
     [[ -f "${HOMELAB_DIR}/hosts/dev1/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/hosts/dev1/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.dev1.yml"
     echo "${TARGET_HOST}" > "${TEMP_DIR}/config/host.txt"
