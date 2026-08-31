@@ -81,8 +81,10 @@ All secrets live in `.env` files (gitignored). Key variables:
 
 ```dotenv
 TZ=Asia/Kolkata
-TAILSCALE_FQDN=<hostname>.ts.net    # Your Tailscale machine FQDN
-TAILSCALE_IP=100.x.x.x              # Tailscale private IP
+DEV1_TAILSCALE_FQDN=dev1.<tailnet>.ts.net
+DEV1_TAILSCALE_IP=100.x.x.x
+DEV2_TAILSCALE_FQDN=dev2.<tailnet>.ts.net
+DEV2_TAILSCALE_IP=100.x.x.x
 
 # Vaultwarden SMTP
 SMTP_HOST=...
