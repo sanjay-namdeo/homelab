@@ -3,7 +3,7 @@
 }
 
 # Tailscale TLS certificate for Vaultwarden (Port 443)
-{$TAILSCALE_FQDN} {
+{$DEV1_TAILSCALE_FQDN} {
     tls {
         get_certificate tailscale
     }
@@ -11,7 +11,7 @@
 }
 
 # Tailscale TLS certificate for AdGuard Home Web UI (Port 8081)
-{$TAILSCALE_FQDN}:8081 {
+{$DEV1_TAILSCALE_FQDN}:8081 {
     tls {
         get_certificate tailscale
     }
@@ -19,7 +19,7 @@
 }
 
 # Tailscale TLS certificate for Obsidian WebDAV (Port 8082)
-{$TAILSCALE_FQDN}:8082 {
+{$DEV1_TAILSCALE_FQDN}:8082 {
     tls {
         get_certificate tailscale
     }
@@ -28,5 +28,5 @@
 
 # Direct HTTP fallback: redirect to Tailscale HTTPS domain
 :80 {
-    redir https://{$TAILSCALE_FQDN}{uri} permanent
+    redir https://{$DEV1_TAILSCALE_FQDN}{uri} permanent
 }

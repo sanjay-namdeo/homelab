@@ -240,17 +240,11 @@ SIGNUPS_ALLOWED=true
 INVITATIONS_ALLOWED=false
 WEBSOCKET_ENABLED=true
 
-# Tailscale Network Settings (dev1)
-TAILSCALE_IP=
-TAILSCALE_HOSTNAME=
-TAILNET_NAME=
-TAILSCALE_FQDN=
-
-# Tailscale Network Settings (dev2 — multi-host)
-DEV1_TAILSCALE_FQDN=${DEV1_TAILSCALE_FQDN:-dev1.${TAILNET_NAME:-yourtailnet.ts.net}}
+# Tailscale Multi-Host Network Settings
 DEV1_TAILSCALE_IP=${DEV1_TAILSCALE_IP:-}
-DEV2_TAILSCALE_FQDN=${DEV2_TAILSCALE_FQDN:-dev2.${TAILNET_NAME:-yourtailnet.ts.net}}
+DEV1_TAILSCALE_FQDN=${DEV1_TAILSCALE_FQDN:-dev1.yourtailnet.ts.net}
 DEV2_TAILSCALE_IP=${DEV2_TAILSCALE_IP:-127.0.0.1}
+DEV2_TAILSCALE_FQDN=${DEV2_TAILSCALE_FQDN:-dev2.yourtailnet.ts.net}
 
 # SMTP Configuration (Brevo — shared by Vaultwarden and Gatus)
 SMTP_HOST=smtp-relay.brevo.com
@@ -289,6 +283,18 @@ EOF
     fi
     # Ensure host symlinks point to root .env
     ln -sf "${HOMELAB_DIR}/.env" "${HOMELAB_DIR}/hosts/dev2/.env" 2>/dev/null || true
+
+    update_env_var() {
+        local key="$1"
+        local val="$2"
+        if grep -q "^${key}=" "${HOMELAB_DIR}/.env"; then
+            sed -i "s|^${key}=.*|${key}=${val}|" "${HOMELAB_DIR}/.env"
+        else
+            echo "${key}=${val}" >> "${HOMELAB_DIR}/.env"
+        fi
+    }
+    [[ -n "${TS_IP}" ]] && update_env_var "DEV2_TAILSCALE_IP" "${TS_IP}"
+    [[ -n "${TS_FQDN}" ]] && update_env_var "DEV2_TAILSCALE_FQDN" "${TS_FQDN}"
 
     # 6. Launch dev2 stack & configure Tailscale Serve
     log_info "[6/6] Launching dev2 Docker stack..."
@@ -353,10 +359,8 @@ EOF
         fi
     }
 
-    [[ -n "${TS_IP}" ]] && update_env_var "TAILSCALE_IP" "${TS_IP}"
-    [[ -n "${TS_HOSTNAME}" ]] && update_env_var "TAILSCALE_HOSTNAME" "${TS_HOSTNAME}"
-    [[ -n "${TS_TAILNET}" ]] && update_env_var "TAILNET_NAME" "${TS_TAILNET}"
-    [[ -n "${TS_FQDN}" ]] && update_env_var "TAILSCALE_FQDN" "${TS_FQDN}"
+    [[ -n "${TS_IP}" ]] && update_env_var "DEV1_TAILSCALE_IP" "${TS_IP}"
+    [[ -n "${TS_FQDN}" ]] && update_env_var "DEV1_TAILSCALE_FQDN" "${TS_FQDN}"
 
     if [ ! -f "${HOMELAB_DIR}/Caddyfile" ]; then
         cat > "${HOMELAB_DIR}/Caddyfile" << 'EOF'
@@ -365,7 +369,7 @@ EOF
 }
 
 # Tailscale TLS certificate for Vaultwarden (Port 443)
-{$TAILSCALE_FQDN} {
+{$DEV1_TAILSCALE_FQDN} {
     tls {
         get_certificate tailscale
     }
@@ -373,7 +377,7 @@ EOF
 }
 
 # Tailscale TLS certificate for AdGuard Home Web UI (Port 8081)
-{$TAILSCALE_FQDN}:8081 {
+{$DEV1_TAILSCALE_FQDN}:8081 {
     tls {
         get_certificate tailscale
     }
@@ -381,7 +385,7 @@ EOF
 }
 
 # Tailscale TLS certificate for Obsidian WebDAV (Port 8082)
-{$TAILSCALE_FQDN}:8082 {
+{$DEV1_TAILSCALE_FQDN}:8082 {
     tls {
         get_certificate tailscale
     }
@@ -390,7 +394,7 @@ EOF
 
 # Direct HTTP fallback: redirect to Tailscale HTTPS domain
 :80 {
-    redir https://{$TAILSCALE_FQDN}{uri} permanent
+    redir https://{$DEV1_TAILSCALE_FQDN}{uri} permanent
 }
 EOF
     fi
