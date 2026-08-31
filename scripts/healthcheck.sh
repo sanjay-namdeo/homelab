@@ -78,9 +78,11 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     # DEV2 DIAGNOSTIC SUITE (Obsidian & Beszel Monitoring Hub)
     # ==========================================================================
 
+    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
+
     # 2. Container Service Health
     header "2. Container Service Health"
-    CONTAINERS=("obsidian_webdav" "obsidian_web" "beszel" "beszel_agent")
+    CONTAINERS=("obsidian_web" "beszel" "beszel_agent" "gatus")
     for c in "${CONTAINERS[@]}"; do
         if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
             STATUS=$(docker inspect --format='{{.State.Status}}' "${c}" 2>/dev/null || echo "unknown")
@@ -99,16 +101,16 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     header "3. Functional & Endpoint Verification"
     if command -v tailscale &>/dev/null; then
         SERVE_STATUS=$(tailscale serve status 2>&1 || echo "")
-        if echo "${SERVE_STATUS}" | grep -q "127.0.0.1:8082"; then
-            pass "Tailscale Serve TLS reverse proxy is active (8082 -> 127.0.0.1:8082 WebDAV)"
-        else
-            warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8082"
-        fi
-
         if echo "${SERVE_STATUS}" | grep -q "127.0.0.1:8083"; then
             pass "Tailscale Serve TLS reverse proxy is active (8083 -> 127.0.0.1:8083 Flatnotes)"
         else
             warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8083"
+        fi
+
+        if echo "${SERVE_STATUS}" | grep -q "127.0.0.1:8085"; then
+            pass "Tailscale Serve TLS reverse proxy is active (8085 -> 127.0.0.1:8085 Gatus)"
+        else
+            warn "Tailscale Serve proxying is not active or not targeting 127.0.0.1:8085"
         fi
 
         if echo "${SERVE_STATUS}" | grep -q "127.0.0.1:8090"; then
@@ -118,25 +120,20 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         fi
     fi
 
-    # Obsidian WebDAV local endpoint
-    DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
-    DAV_USER=""
-    DAV_PASS=""
-    [[ -f "${DEV2_ENV}" ]] && DAV_USER=$(grep '^WEBDAV_USERNAME=' "${DEV2_ENV}" | cut -d= -f2- || echo "obsidian")
-    [[ -f "${DEV2_ENV}" ]] && DAV_PASS=$(grep '^WEBDAV_PASSWORD=' "${DEV2_ENV}" | cut -d= -f2- || echo "")
-    DAV_HTTP=$(curl -s -u "${DAV_USER}:${DAV_PASS}" -o /dev/null -w "%{http_code}" "http://127.0.0.1:8082/data/" 2>/dev/null || echo "000")
-    if [[ "${DAV_HTTP}" == "200" || "${DAV_HTTP}" == "207" || "${DAV_HTTP}" == "301" ]]; then
-        pass "Obsidian WebDAV local HTTP endpoint is responding (http://127.0.0.1:8082/data/ -> HTTP ${DAV_HTTP})"
-    else
-        warn "Obsidian WebDAV local endpoint returned status code ${DAV_HTTP}"
-    fi
-
     # Obsidian Flatnotes local endpoint
     FLAT_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8083/" 2>/dev/null || echo "000")
     if [[ "${FLAT_HTTP}" == "200" || "${FLAT_HTTP}" == "302" ]]; then
         pass "Obsidian Flatnotes Web UI local HTTP endpoint is responding (http://127.0.0.1:8083/ -> HTTP ${FLAT_HTTP})"
     else
         warn "Obsidian Flatnotes Web UI local endpoint returned status code ${FLAT_HTTP}"
+    fi
+
+    # Gatus Status Dashboard local endpoint
+    GATUS_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8085/" 2>/dev/null || echo "000")
+    if [[ "${GATUS_HTTP}" == "200" || "${GATUS_HTTP}" == "302" ]]; then
+        pass "Gatus Health & Status Hub local HTTP endpoint is responding (http://127.0.0.1:8085/ -> HTTP ${GATUS_HTTP})"
+    else
+        warn "Gatus Hub local endpoint returned status code ${GATUS_HTTP}"
     fi
 
     # Beszel Hub local endpoint
@@ -149,18 +146,18 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
 
     # HTTPS via Tailscale FQDN
     if [[ -n "${TS_FQDN}" ]]; then
-        DAV_TLS=$(curl -s -k -u "${DAV_USER}:${DAV_PASS}" -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8082/data/" 2>/dev/null || echo "000")
-        if [[ "${DAV_TLS}" == "200" || "${DAV_TLS}" == "207" || "${DAV_TLS}" == "301" ]]; then
-            pass "Obsidian WebDAV HTTPS endpoint is responding (https://${TS_FQDN}:8082/data/ -> HTTP ${DAV_TLS})"
-        else
-            warn "Obsidian WebDAV HTTPS endpoint returned status code ${DAV_TLS}"
-        fi
-
         FLAT_TLS=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8083/" 2>/dev/null || echo "000")
         if [[ "${FLAT_TLS}" == "200" || "${FLAT_TLS}" == "302" ]]; then
             pass "Obsidian Flatnotes Web UI HTTPS endpoint is responding (https://${TS_FQDN}:8083/ -> HTTP ${FLAT_TLS})"
         else
             warn "Obsidian Flatnotes Web UI HTTPS endpoint returned status code ${FLAT_TLS}"
+        fi
+
+        GATUS_TLS=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8085/" 2>/dev/null || echo "000")
+        if [[ "${GATUS_TLS}" == "200" || "${GATUS_TLS}" == "302" ]]; then
+            pass "Gatus Health & Status Hub HTTPS endpoint is responding (https://${TS_FQDN}:8085/ -> HTTP ${GATUS_TLS})"
+        else
+            warn "Gatus Hub HTTPS endpoint returned status code ${GATUS_TLS}"
         fi
 
         BESZEL_TLS=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8090/" 2>/dev/null || echo "000")
@@ -187,6 +184,12 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
             fail "Port 8083 is accessible on WAN/LAN interface (${LAN_IP})!"
         fi
 
+        if ! nc -z -w 1 "${LAN_IP}" 8085 2>/dev/null; then
+            pass "Port 8085 (Gatus Status Hub) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+        else
+            fail "Port 8085 is accessible on WAN/LAN interface (${LAN_IP})!"
+        fi
+
         if ! nc -z -w 1 "${LAN_IP}" 8090 2>/dev/null; then
             pass "Port 8090 (Beszel Hub) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
         else
@@ -205,16 +208,21 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
 
 else
     # ==========================================================================
-    # DEV1 DIAGNOSTIC SUITE (Vaultwarden, AdGuard, Uptime Kuma, Caddy)
+    # DEV1 DIAGNOSTIC SUITE (Vaultwarden, AdGuard, Obsidian WebDAV, Caddy, Beszel Agent)
     # ==========================================================================
 
     # 2. Container Service Health
     header "2. Container Service Health"
-    CONTAINERS=("vaultwarden" "adguardhome" "caddy" "uptime-kuma")
+    CONTAINERS=("vaultwarden" "adguardhome" "caddy" "obsidian_webdav" "beszel_agent")
     for c in "${CONTAINERS[@]}"; do
         if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
             STATUS=$(docker inspect --format='{{.State.Status}}' "${c}" 2>/dev/null || echo "unknown")
-            pass "Container '${c}' is running (${STATUS})"
+            HEALTH=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${c}" 2>/dev/null || echo "none")
+            if [[ "${HEALTH}" != "none" ]]; then
+                pass "Container '${c}' is running (${STATUS}, health: ${HEALTH})"
+            else
+                pass "Container '${c}' is running (${STATUS})"
+            fi
         else
             fail "Container '${c}' is NOT running"
         fi
@@ -257,20 +265,19 @@ else
         fi
     fi
 
-    # Uptime Kuma Web UI (HTTPS / HTTP)
+    # Obsidian WebDAV Sync (HTTPS / HTTP)
+    DEV1_ENV="${HOMELAB_DIR}/hosts/dev1/.env"
+    DAV_USER="obsidian"
+    DAV_PASS=""
+    [[ -f "${DEV1_ENV}" ]] && DAV_PASS=$(grep '^WEBDAV_PASSWORD=' "${DEV1_ENV}" | cut -d= -f2- || echo "")
+    [[ -z "${DAV_PASS}" && -f "${HOMELAB_DIR}/.env" ]] && DAV_PASS=$(grep '^WEBDAV_PASSWORD=' "${HOMELAB_DIR}/.env" | cut -d= -f2- || echo "")
+
     if [[ -n "${TS_FQDN}" ]]; then
-        UK_HTTP=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:3001" 2>/dev/null || echo "000")
-        if [[ "${UK_HTTP}" == "200" || "${UK_HTTP}" == "302" ]]; then
-            pass "Uptime Kuma Web UI HTTPS is responding (https://${TS_FQDN}:3001 -> HTTP ${UK_HTTP})"
+        DAV_TLS=$(curl -s -k -u "${DAV_USER}:${DAV_PASS}" -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8082/data/" 2>/dev/null || echo "000")
+        if [[ "${DAV_TLS}" == "200" || "${DAV_TLS}" == "207" || "${DAV_TLS}" == "301" ]]; then
+            pass "Obsidian WebDAV HTTPS is responding (https://${TS_FQDN}:8082/data/ -> HTTP ${DAV_TLS})"
         else
-            warn "Uptime Kuma Web UI HTTPS returned status code ${UK_HTTP}"
-        fi
-    else
-        UK_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://${TS_IP}:3001" 2>/dev/null || echo "000")
-        if [[ "${UK_HTTP}" == "200" || "${UK_HTTP}" == "302" ]]; then
-            pass "Uptime Kuma Web UI is reachable (http://${TS_IP}:3001 -> HTTP ${UK_HTTP})"
-        else
-            warn "Uptime Kuma Web UI returned status code ${UK_HTTP}"
+            warn "Obsidian WebDAV HTTPS returned status code ${DAV_TLS}"
         fi
     fi
 
@@ -287,15 +294,15 @@ else
     LAN_IP=$(ip -4 addr show ens3 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1 || echo "")
     if [[ -n "${LAN_IP}" ]]; then
         if ! nc -z -w 1 "${LAN_IP}" 8081 2>/dev/null; then
-            pass "Port 8081 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+            pass "Port 8081 (AdGuard Web) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
         else
             fail "Port 8081 is accessible on WAN/LAN interface (${LAN_IP})!"
         fi
 
-        if ! nc -z -w 1 "${LAN_IP}" 3001 2>/dev/null; then
-            pass "Port 3001 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+        if ! nc -z -w 1 "${LAN_IP}" 8082 2>/dev/null; then
+            pass "Port 8082 (Obsidian WebDAV) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
         else
-            fail "Port 3001 is accessible on WAN/LAN interface (${LAN_IP})!"
+            fail "Port 8082 is accessible on WAN/LAN interface (${LAN_IP})!"
         fi
 
         if ! nc -z -w 1 "${LAN_IP}" 53 2>/dev/null; then

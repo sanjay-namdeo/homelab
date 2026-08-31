@@ -1,5 +1,5 @@
 # Personal Cloud Hub: Setup & Full Replication Guide
-> **Services**: Vaultwarden (Bitwarden) &bull; AdGuard Home &bull; Uptime Kuma &bull; Caddy Reverse Proxy &bull; Tailscale WireGuard Mesh  
+> **Services**: Vaultwarden (Bitwarden) &bull; AdGuard Home &bull; Obsidian WebDAV &bull; Flatnotes Web &bull; Gatus Status &bull; Caddy Reverse Proxy &bull; Tailscale WireGuard Mesh  
 > **Security Model**: Zero public internet exposure &bull; Zero domain cost &bull; Automated Let's Encrypt TLS via Tailscale MagicDNS
 
 ---
@@ -199,65 +199,22 @@ To route 100% of your internet traffic through this server:
 
 ---
 
-## 📊 Uptime Kuma: Service Status & Monitoring Dashboard
+## 📊 Service Health & Monitoring Overview
 
-Uptime Kuma provides an all-in-one web dashboard to monitor the health, response times, SSL validity, and uptime of your entire homelab stack.
+The homelab utilizes **Gatus** (hosted on `dev2`) and **Beszel** (distributed across `dev1` & `dev2`) for comprehensive, zero-overhead infrastructure monitoring:
 
-### 1. Web UI Access
-Access the dashboard over HTTPS on your encrypted Tailscale network at:
-👉 **`https://<tailscale-fqdn>:3001`** (e.g. `https://dev1.<tailnet>.ts.net:3001`)
+1. **Gatus Health & Status Hub (`dev2:8085`)**:
+   - Declarative, code-defined endpoint monitoring for all core infrastructure services.
+   - Built-in latency tracking, HTTP status validation, and DNS resolution testing.
+   - Native Brevo SMTP email alerting on service failures and recoveries.
+2. **Beszel Multi-Node Health Hub (`dev2:8090`)**:
+   - Real-time CPU, RAM, disk, swap, network, and Docker container metrics.
+   - Ultra-lightweight agents communicating via Unix sockets (`dev2`) and host ports (`dev1:45876`).
+   - Automated threshold alerting.
 
-On initial access:
-1. Create your administrator username and password.
-2. The dashboard will open immediately.
+For complete setup and configuration details, refer to the **Gatus** and **Beszel** sections below.
 
-### 2. Recommended Monitors to Add
-
-#### A. Node: `dev1` (Core Infrastructure)
-
-| Monitor Name | Monitor Type | Target / URL | Heartbeat | Auth / Extra Settings |
-| :--- | :--- | :--- | :--- | :--- |
-| **dev1 - Vaultwarden HTTPS** | `HTTP(s)` | `https://dev1.<tailnet>.ts.net/alive` | `60s` | Accepted: 200-299 |
-| **dev1 - AdGuard Home Web** | `HTTP(s)` | `https://dev1.<tailnet>.ts.net:8081/login.html` | `60s` | Accepted: 200-299 |
-| **dev1 - Uptime Kuma Web** | `HTTP(s)` | `https://dev1.<tailnet>.ts.net:3001` | `60s` | Accepted: 200-299 |
-| **dev1 - AdGuard DNS Port** | `TCP Port` | Hostname: `adguardhome`, Port: `53` | `60s` | Port check |
-| **dev1 - Caddy Reverse Proxy** | `TCP Port` | Hostname: `caddy`, Port: `443` | `60s` | Port check |
-| **dev1 - Docker Containers** | `Docker Container` | Socket: `/var/run/docker.sock` | `60s` | Container list |
-
-#### B. Node: `dev2` (Knowledge Hub & Server Monitoring)
-
-| Monitor Name | Monitor Type | Target / URL | Heartbeat | Auth / Extra Settings |
-| :--- | :--- | :--- | :--- | :--- |
-| **dev2 - Obsidian WebDAV Sync** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net:8082/data/` | `60s` | Basic Auth: `obsidian` / `${WEBDAV_PASSWORD}`, Accepted: 200-299 |
-| **dev2 - Obsidian Web Editor** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net:8083` | `60s` | Accepted: 200-299 |
-| **dev2 - Beszel Health Hub** | `HTTP(s)` | `https://dev2.<tailnet>.ts.net:8090` | `60s` | Accepted: 200-299 |
-
-### 3. Setting Up Email / SMTP Alert Notifications (Brevo Relay)
-
-To receive real-time email alerts whenever a container goes down or recovers, configure Uptime Kuma with your Brevo SMTP credentials:
-
-1. In the Uptime Kuma UI, navigate to **Settings ➔ Notifications ➔ Setup Notification**.
-2. Select **Email (SMTP)** as the Notification Type.
-3. Fill in the connection parameters using the values from your `/opt/homelab/.env`:
-   - **Notification Type**: `Email (SMTP)`
-   - **Friendly Name**: `Brevo SMTP Alerts`
-   - **Hostname**: `smtp-relay.brevo.com` (from `SMTP_HOST`)
-   - **Port**: `587` (from `SMTP_PORT`)
-   - **Security**: `None / STARTTLS`
-   - **Username**: `<your-brevo-login-email>` (from `SMTP_USERNAME`)
-   - **Password**: `<your-brevo-smtp-key>` (from `SMTP_PASSWORD`)
-   - **From Email**: `vaultwarden@yourdomain.com` or `alerts@yourdomain.com` (from `SMTP_FROM`)
-   - **Recipient Email**: `<your-personal-alert-email>`
-   - **Subject**: `[Uptime Kuma] [{{STATUS}}] {{NAME}} is {{STATUS}}` (or default)
-4. Check **"Default enabled"** to automatically attach this alert channel to all current and future monitors.
-5. Click **"Test"** to send a test alert email and verify successful delivery.
-6. Click **"Save"**.
-
-> [!TIP]
-> **Enhanced Rich HTML Email Notifications**: The homelab includes a customized SMTP notification provider ([`hosts/dev1/uptime-kuma/smtp.js`](hosts/dev1/uptime-kuma/smtp.js)) mounted into Uptime Kuma that renders modern, responsive, card-based HTML emails with color-coded status banners (🔴 Down, ✅ Operational, ⚠️ Certificate Expiry, 🧪 Test), highlighted error logs, latency metrics, state durations, and direct dashboard quick-action links.
-
-> [!TIP]
-> You can also attach secondary notification providers (e.g. **Telegram**, **Discord**, **Pushover**, **Slack**, or **Webhook**) under the same **Settings ➔ Notifications** panel for multi-channel incident response.
+---
 
 ---
 
@@ -345,6 +302,35 @@ graph LR
    - **Username**: `obsidian`
    - **Password**: `<YOUR_FLATNOTES_PASSWORD>` (from `hosts/dev2/.env`)
 3. View, search, and edit notes in real time. All changes immediately write to `/opt/homelab/data/dev2/obsidian/vault` and sync down to all desktop & mobile apps on their next sync cycle.
+
+---
+
+## 🚦 Gatus: Automated Service Health Dashboard & Email Alerting (dev2)
+
+Gatus is deployed on `dev2` as a declarative, code-defined health status dashboard and alert dispatcher. It monitors all services running across `dev1` and `dev2`, and delivers real-time Brevo SMTP email notifications.
+
+### 1. Web UI Access
+Open the status dashboard in your browser over Tailscale:
+👉 **`https://dev2.<tailnet>.ts.net:8085`** (e.g. `https://dev2.tail256d6d.ts.net:8085`)
+
+### 2. Pre-Configured Monitored Services & Endpoints
+
+| Service Group | Service Name | Target / URL | Condition | Alerting |
+| :--- | :--- | :--- | :--- | :--- |
+| **`dev1` (Core)** | `dev1 - Vaultwarden HTTPS` | `https://dev1.<tailnet>.ts.net/alive` | `[STATUS] == 200` | Brevo SMTP |
+| **`dev1` (Core)** | `dev1 - AdGuard Home Web` | `https://dev1.<tailnet>.ts.net:8081/login.html` | `[STATUS] == 200` | Brevo SMTP |
+| **`dev1` (Core)** | `dev1 - Obsidian WebDAV Sync` | `https://dev1.<tailnet>.ts.net:8082/data/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP |
+| **`dev1` (Core)** | `dev1 - AdGuard DNS Service` | `100.69.247.60` (DNS Query: `google.com`) | `[DNS_RCODE] == NOERROR` | Brevo SMTP |
+| **`dev1` (Core)** | `dev1 - Caddy Reverse Proxy` | `tcp://100.69.247.60:443` | `[CONNECTED] == true` | Brevo SMTP |
+| **`dev2` (Hub)** | `dev2 - Obsidian Web Editor` | `http://obsidian_web:8080/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP |
+| **`dev2` (Hub)** | `dev2 - Beszel Health Hub` | `http://beszel:8090/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP |
+| **`dev2` (Hub)** | `dev2 - Gatus Status Hub` | `http://127.0.0.1:8080/` | `[STATUS] == 200` | Local Health |
+
+### 3. Brevo SMTP Alerting Configuration
+- **SMTP Host**: Configured via `SMTP_HOST` in `.env` (e.g. `smtp-relay.brevo.com:587`)
+- **Sender**: Configured via `SMTP_FROM` in `.env`
+- **Recipient**: Configured via `ALERT_EMAIL` in `.env`
+- **Alert Behavior**: Sends real-time email notifications on failure (3 consecutive failures) and recovery (`send-on-resolved: true`).
 
 ---
 
@@ -627,15 +613,17 @@ sudo bash /opt/homelab/scripts/rollback.sh
 ## 💾 Multi-Host Backup, Restore & Disaster Recovery
 
 Persistent data is segregated by host:
-- **`dev1` (Core Stack)**:
+- **`dev1` (Core Stack & WebDAV Sync)**:
   - `/opt/homelab/data/vaultwarden/`: SQLite database (`db.sqlite3`), RSA keys, attachments.
   - `/opt/homelab/data/adguard/conf/`: `AdGuardHome.yaml` configuration, filters, client rules.
-  - `/opt/homelab/data/uptime-kuma/`: SQLite monitoring database (`kuma.db`), TLS tracking.
+  - `/opt/homelab/data/obsidian/vault/`: Primary live Obsidian Markdown notes and attachments vault.
   - `/opt/homelab/data/caddy/`: TLS certificates and Caddy configuration cache.
 - **`dev2` (Knowledge & Monitoring Hub)**:
   - `/opt/homelab/data/dev2/obsidian/vault/`: Obsidian Markdown notes and attachments vault.
   - `/opt/homelab/data/dev2/obsidian/flatnotes_data/`: Flatnotes search index and user preferences.
   - `/opt/homelab/data/dev2/beszel/data/`: Beszel Hub metrics database (`data.db`, SQLite) and SSH cryptographic keypair.
+  - `/opt/homelab/data/dev2/gatus/`: Gatus Status Dashboard historical metrics database (`gatus.db`, SQLite).
+  - `/opt/homelab/hosts/dev2/gatus/config.yaml`: Gatus endpoint definitions and Brevo SMTP alerting rules.
   - `/opt/homelab/hosts/dev2/.env`: Application secrets, WebDAV credentials, and R2 keys.
 - **All Hosts**:
   - `/opt/homelab/data/backups/`: Local compressed, timestamped, permission-locked (`0600`) archives (`homelab_backup_<host>_<timestamp>.tar.gz`).
@@ -652,11 +640,12 @@ sudo bash /opt/homelab/scripts/backup_homelab.sh
 **Host-Aware Process Breakdown**:
 - **On `dev1`**:
   1. **Live SQLite Snapshot**: Captures a point-in-time database snapshot via Python's native `sqlite3.backup()` API (100% safe from WAL corruption).
-  2. **Configuration Packaging**: Archives AdGuard filters, Caddy TLS configurations, Uptime Kuma db, and `.env` secrets.
+  2. **Configuration Packaging**: Archives AdGuard filters, Caddy TLS configurations, Obsidian Markdown Vault, Gatus database, and `.env` secrets.
 - **On `dev2`**:
   1. **Obsidian Vault**: Archives all Markdown notes, attachments, and Flatnotes metadata from `data/dev2/obsidian`.
   2. **Beszel Hub Metrics & Keys**: Archives historical server metrics database and SSH keys from `data/dev2/beszel/data`.
-  3. **Configuration & Secrets**: Backs up `hosts/dev2/.env` containing WebDAV credentials and R2 secrets.
+  3. **Gatus SQLite Snapshot**: Captures a live point-in-time snapshot of `gatus.db` and archives `config.yaml`.
+  4. **Configuration & Secrets**: Backs up `hosts/dev2/.env` containing WebDAV credentials and R2 secrets.
 - **On Both Hosts**:
   1. **Security & Permissions**: Compresses data into `/opt/homelab/data/backups/homelab_backup_<host>_<timestamp>.tar.gz` (`0600` root-only).
   2. **Local Rotation**: Purges local backups older than 14 days.
@@ -739,6 +728,12 @@ sudo bash /opt/homelab/scripts/deploy_stack.sh
 Test and validate your backup archive at any time in an isolated target directory without modifying running services:
 ```bash
 sudo bash /opt/homelab/scripts/restore_homelab.sh /opt/homelab/data/backups/<backup_file>.tar.gz --target-dir /tmp/dr_test
+```
+
+### 4. Automated Catastrophic Failure & Recovery Simulation Drill
+Simulate a complete catastrophic server crash / total wipe and execute cold-start disaster recovery validation across `dev1` and `dev2`:
+```bash
+sudo bash /opt/homelab/scripts/test_disaster_recovery.sh
 ```
 
 ---

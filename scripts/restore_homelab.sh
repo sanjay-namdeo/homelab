@@ -3,13 +3,15 @@
 # Homelab Automated Disaster Recovery & Restore Script (Multi-Host: dev1 & dev2)
 # ==============================================================================
 # Restores homelab stack state from a timestamped backup archive:
-#  - dev1: Vaultwarden database & keys, AdGuard conf, Uptime Kuma db, Caddyfile, .env
+#  - dev1: Vaultwarden database & keys, AdGuard conf, Obsidian WebDAV, Caddyfile, .env
 #  - dev2: Obsidian Markdown Vault & Flatnotes data, Beszel Hub metrics & keys, .env secrets, docker-compose.yml
 #  - Enforces strict security permissions (0700/0600)
 #  - Validates database integrity (SQLite integrity_check)
 # ==============================================================================
 
 set -euo pipefail
+
+export PATH="/home/sanjay-namdeo/.local/bin:/usr/local/bin:$PATH"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -76,8 +78,7 @@ if [[ -z "${ARCHIVE_PATH}" ]]; then
 fi
 
 if [[ $EUID -ne 0 ]]; then
-    log_error "This script must be run as root or with sudo: sudo $0 ..."
-    exit 1
+    log_warn "Running as non-root user ($(whoami)). Target directory must be writable."
 fi
 
 if [[ ! -f "${ARCHIVE_PATH}" ]]; then
@@ -102,7 +103,7 @@ IS_DEV2=false
 if [[ -f "${TEMP_EXTRACT}/config/host.txt" ]]; then
     HOST_TYPE=$(cat "${TEMP_EXTRACT}/config/host.txt")
     [[ "${HOST_TYPE}" == "dev2" ]] && IS_DEV2=true
-elif [[ -d "${TEMP_EXTRACT}/obsidian" || -d "${TEMP_EXTRACT}/beszel" ]]; then
+elif [[ -d "${TEMP_EXTRACT}/obsidian" || -d "${TEMP_EXTRACT}/beszel" || -d "${TEMP_EXTRACT}/gatus" ]]; then
     IS_DEV2=true
 fi
 
@@ -110,12 +111,12 @@ if [[ "${IS_DEV2}" == true ]]; then
     # --------------------------------------------------------------------------
     # DEV2 RESTORE PROCEDURE
     # --------------------------------------------------------------------------
-    log_info "Detected Host Profile: dev2 (Obsidian & Beszel Monitoring Hub)"
+    log_info "Detected Host Profile: dev2 (Obsidian, Beszel Hub, & Gatus Status Dashboard)"
     
-    mkdir -p "${TARGET_DIR}/hosts/dev2"
+    mkdir -p "${TARGET_DIR}/hosts/dev2" "${TARGET_DIR}/hosts/dev2/gatus"
 
     # 1. Restore Environment & Compose definitions
-    log_info "[2/3] Restoring dev2 environment secrets and compose file..."
+    log_info "[2/4] Restoring dev2 environment secrets and compose file..."
     if [[ -f "${TEMP_EXTRACT}/config/.env" ]]; then
         cp "${TEMP_EXTRACT}/config/.env" "${TARGET_DIR}/hosts/dev2/.env"
         chmod 600 "${TARGET_DIR}/hosts/dev2/.env"
@@ -127,7 +128,7 @@ if [[ "${IS_DEV2}" == true ]]; then
     fi
 
     # 2. Restore Obsidian Markdown Vault & Web Data
-    log_info "[3/3] Restoring Obsidian Markdown Vault & Beszel Hub data..."
+    log_info "[3/4] Restoring Obsidian Markdown Vault, Beszel Hub, & Gatus data..."
     if [[ -d "${TEMP_EXTRACT}/obsidian" ]]; then
         log_info "Restoring Obsidian Markdown Vault and Web configuration..."
         mkdir -p "${TARGET_DIR}/data/dev2/obsidian"
@@ -145,7 +146,21 @@ if [[ "${IS_DEV2}" == true ]]; then
         log_success "Beszel Server Monitoring Hub data restored."
     fi
 
-    # 4. Database Integrity Verification (dev2)
+    # 4. Restore Gatus Status Dashboard Data & Configuration
+    if [[ -d "${TEMP_EXTRACT}/gatus" ]]; then
+        log_info "Restoring Gatus Status Dashboard database and configuration..."
+        mkdir -p "${TARGET_DIR}/data/dev2/gatus" "${TARGET_DIR}/hosts/dev2/gatus"
+        if [[ -f "${TEMP_EXTRACT}/gatus/gatus.db" ]]; then
+            cp "${TEMP_EXTRACT}/gatus/gatus.db" "${TARGET_DIR}/data/dev2/gatus/gatus.db"
+            chmod 600 "${TARGET_DIR}/data/dev2/gatus/gatus.db"
+        fi
+        if [[ -f "${TEMP_EXTRACT}/gatus/config.yaml" ]]; then
+            cp "${TEMP_EXTRACT}/gatus/config.yaml" "${TARGET_DIR}/hosts/dev2/gatus/config.yaml"
+        fi
+        log_success "Gatus Status Dashboard files restored."
+    fi
+
+    # 5. Database Integrity Verification (dev2)
     echo "=========================================================="
     echo " Validating Restored Database Integrity"
     echo "=========================================================="
@@ -164,16 +179,31 @@ sys.exit(0 if res == [('ok',)] else 1)
         fi
     fi
 
+    if [[ -f "${TARGET_DIR}/data/dev2/gatus/gatus.db" ]]; then
+        if python3 -c "
+import sqlite3, sys
+con = sqlite3.connect('${TARGET_DIR}/data/dev2/gatus/gatus.db')
+res = con.execute('PRAGMA integrity_check;').fetchall()
+con.close()
+sys.exit(0 if res == [('ok',)] else 1)
+"; then
+            log_success "Gatus SQLite database integrity: OK"
+        else
+            log_error "Gatus SQLite integrity check FAILED"
+            exit 1
+        fi
+    fi
+
 else
     # --------------------------------------------------------------------------
     # DEV1 RESTORE PROCEDURE
     # --------------------------------------------------------------------------
-    log_info "Detected Host Profile: dev1 (Vaultwarden, AdGuard, Uptime Kuma, Caddy)"
+    log_info "Detected Host Profile: dev1 (Vaultwarden, AdGuard, Obsidian WebDAV, Caddy)"
 
     mkdir -p "${TARGET_DIR}/data/vaultwarden"
     mkdir -p "${TARGET_DIR}/data/adguard/conf"
     mkdir -p "${TARGET_DIR}/data/adguard/work"
-    mkdir -p "${TARGET_DIR}/data/uptime-kuma"
+    mkdir -p "${TARGET_DIR}/data/obsidian/vault"
     mkdir -p "${TARGET_DIR}/data/caddy"
     mkdir -p "${TARGET_DIR}/hosts/dev1"
 
@@ -184,6 +214,8 @@ else
     fi
     [[ -f "${TEMP_EXTRACT}/vaultwarden/config.json" ]] && cp "${TEMP_EXTRACT}/vaultwarden/config.json" "${TARGET_DIR}/data/vaultwarden/"
     [[ -f "${TEMP_EXTRACT}/vaultwarden/rsa_key.pem" ]] && cp "${TEMP_EXTRACT}/vaultwarden/rsa_key.pem" "${TARGET_DIR}/data/vaultwarden/"
+    [[ -d "${TEMP_EXTRACT}/vaultwarden/attachments" ]] && cp -a "${TEMP_EXTRACT}/vaultwarden/attachments" "${TARGET_DIR}/data/vaultwarden/"
+    [[ -d "${TEMP_EXTRACT}/vaultwarden/sends" ]] && cp -a "${TEMP_EXTRACT}/vaultwarden/sends" "${TARGET_DIR}/data/vaultwarden/"
     chmod 700 "${TARGET_DIR}/data/vaultwarden"
     chmod 600 "${TARGET_DIR}/data/vaultwarden/db.sqlite3" 2>/dev/null || true
     chmod 600 "${TARGET_DIR}/data/vaultwarden/config.json" 2>/dev/null || true
@@ -200,13 +232,13 @@ else
         log_success "AdGuard Home configuration restored."
     fi
 
-    # 3. Restore Uptime Kuma
-    log_info "[4/5] Restoring Uptime Kuma database..."
-    if [[ -f "${TEMP_EXTRACT}/uptime-kuma/kuma.db" ]]; then
-        cp "${TEMP_EXTRACT}/uptime-kuma/kuma.db" "${TARGET_DIR}/data/uptime-kuma/kuma.db"
-        chmod 700 "${TARGET_DIR}/data/uptime-kuma"
-        chmod 600 "${TARGET_DIR}/data/uptime-kuma/kuma.db"
-        log_success "Uptime Kuma database restored."
+    # 3. Restore Obsidian Markdown Vault
+    log_info "[4/5] Restoring primary Obsidian Markdown Vault on dev1..."
+    if [[ -d "${TEMP_EXTRACT}/obsidian" ]]; then
+        cp -a "${TEMP_EXTRACT}/obsidian"/. "${TARGET_DIR}/data/obsidian/" 2>/dev/null || true
+        chown -R 82:82 "${TARGET_DIR}/data/obsidian" 2>/dev/null || true
+        chmod -R 775 "${TARGET_DIR}/data/obsidian" 2>/dev/null || true
+        log_success "Obsidian Markdown Vault restored."
     fi
 
     # 4. Restore Caddyfile & Stack Configs
@@ -217,13 +249,27 @@ else
         chmod 600 "${TARGET_DIR}/.env"
         chmod 600 "${TARGET_DIR}/hosts/dev1/.env" 2>/dev/null || true
     fi
+    if [[ -f "${TEMP_EXTRACT}/config/.env.dev1" ]]; then
+        cp "${TEMP_EXTRACT}/config/.env.dev1" "${TARGET_DIR}/hosts/dev1/.env"
+        chmod 600 "${TARGET_DIR}/hosts/dev1/.env"
+    fi
     if [[ -f "${TEMP_EXTRACT}/config/docker-compose.yml" ]]; then
         cp "${TEMP_EXTRACT}/config/docker-compose.yml" "${TARGET_DIR}/docker-compose.yml"
         cp "${TEMP_EXTRACT}/config/docker-compose.yml" "${TARGET_DIR}/hosts/dev1/docker-compose.yml" 2>/dev/null || true
     fi
+    if [[ -f "${TEMP_EXTRACT}/config/docker-compose.dev1.yml" ]]; then
+        cp "${TEMP_EXTRACT}/config/docker-compose.dev1.yml" "${TARGET_DIR}/hosts/dev1/docker-compose.yml"
+    fi
     if [[ -f "${TEMP_EXTRACT}/caddy/Caddyfile" ]]; then
         cp "${TEMP_EXTRACT}/caddy/Caddyfile" "${TARGET_DIR}/Caddyfile"
         cp "${TEMP_EXTRACT}/caddy/Caddyfile" "${TARGET_DIR}/hosts/dev1/Caddyfile" 2>/dev/null || true
+    fi
+    if [[ -f "${TEMP_EXTRACT}/caddy/Caddyfile.host" ]]; then
+        cp "${TEMP_EXTRACT}/caddy/Caddyfile.host" "${TARGET_DIR}/hosts/dev1/Caddyfile"
+    fi
+    if [[ -d "${TEMP_EXTRACT}/caddy/data" ]]; then
+        mkdir -p "${TARGET_DIR}/data/caddy/data"
+        cp -a "${TEMP_EXTRACT}/caddy/data"/. "${TARGET_DIR}/data/caddy/data/" 2>/dev/null || true
     fi
 
     # 5. Database Integrity Verification
@@ -242,21 +288,6 @@ sys.exit(0 if res == [('ok',)] else 1)
             log_success "Vaultwarden SQLite database integrity: OK"
         else
             log_error "Vaultwarden SQLite integrity check FAILED"
-            exit 1
-        fi
-    fi
-
-    if [[ -f "${TARGET_DIR}/data/uptime-kuma/kuma.db" ]]; then
-        if python3 -c "
-import sqlite3, sys
-con = sqlite3.connect('${TARGET_DIR}/data/uptime-kuma/kuma.db')
-res = con.execute('PRAGMA integrity_check;').fetchall()
-con.close()
-sys.exit(0 if res == [('ok',)] else 1)
-"; then
-            log_success "Uptime Kuma SQLite database integrity: OK"
-        else
-            log_error "Uptime Kuma SQLite integrity check FAILED"
             exit 1
         fi
     fi

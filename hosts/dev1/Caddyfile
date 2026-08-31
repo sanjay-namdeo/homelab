@@ -18,12 +18,12 @@
     reverse_proxy adguardhome:80
 }
 
-# Tailscale TLS certificate for Uptime Kuma (Port 3001)
-{$TAILSCALE_FQDN}:3001 {
+# Tailscale TLS certificate for Obsidian WebDAV (Port 8082)
+{$TAILSCALE_FQDN}:8082 {
     tls {
         get_certificate tailscale
     }
-    reverse_proxy uptime-kuma:3001
+    reverse_proxy obsidian_webdav:80
 }
 
 # Direct HTTP fallback: redirect to Tailscale HTTPS domain

@@ -26,8 +26,7 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 if [[ $EUID -ne 0 ]]; then
-    log_error "This script must be run as root or with sudo: sudo $0"
-    exit 1
+    log_warn "Running as non-root user ($(whoami)). Ensure write permissions to vault directories."
 fi
 
 cd "${HOMELAB_DIR}"
@@ -59,7 +58,7 @@ cp -v "${NOTES_DIR}"/*.md "${VAULT_DIR}/notes/" 2>/dev/null || true
 cp "${NOTES_DIR}/00 - Homelab Hub.md" "${VAULT_DIR}/notes/00 - Homelab Overview & Architecture.md" 2>/dev/null || true
 cp "${NOTES_DIR}/02 - Service - Vaultwarden.md" "${VAULT_DIR}/notes/Service - Vaultwarden.md" 2>/dev/null || true
 cp "${NOTES_DIR}/02 - Service - AdGuard Home.md" "${VAULT_DIR}/notes/Service - AdGuard Home.md" 2>/dev/null || true
-cp "${NOTES_DIR}/02 - Service - Uptime Kuma.md" "${VAULT_DIR}/notes/Service - Uptime Kuma.md" 2>/dev/null || true
+cp "${NOTES_DIR}/02 - Service - Gatus.md" "${VAULT_DIR}/notes/Service - Gatus.md" 2>/dev/null || true
 cp "${NOTES_DIR}/02 - Service - Obsidian Sync & Flatnotes.md" "${VAULT_DIR}/notes/Service - Obsidian Sync & Flatnotes.md" 2>/dev/null || true
 cp "${NOTES_DIR}/02 - Service - Beszel Server Monitoring.md" "${VAULT_DIR}/notes/Service - Beszel Server Monitoring.md" 2>/dev/null || true
 cp "${NOTES_DIR}/02 - Service - Caddy Reverse Proxy.md" "${VAULT_DIR}/notes/Service - Caddy Reverse Proxy.md" 2>/dev/null || true

@@ -3,7 +3,7 @@
 # Homelab Automated Snapshot & Backup Script (Multi-Host: dev1 & dev2)
 # ==============================================================================
 # Performs consistent, non-blocking point-in-time backups:
-#  - dev1: SQLite online hot-backup (Vaultwarden, Uptime Kuma), AdGuard conf,
+#  - dev1: SQLite online hot-backup (Vaultwarden), AdGuard conf, Obsidian WebDAV,
 #          Caddy TLS state, environment & compose definitions.
 #  - dev2: Obsidian Markdown Vault & Flatnotes data, Beszel Hub metrics & keys,
 #          environment & compose definitions.
@@ -13,6 +13,8 @@
 # ==============================================================================
 
 set -euo pipefail
+
+export PATH="/home/sanjay-namdeo/.local/bin:/usr/local/bin:$PATH"
 
 HOMELAB_DIR="/opt/homelab"
 BACKUP_ROOT="${HOMELAB_DIR}/data/backups"
@@ -33,8 +35,7 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 if [[ $EUID -ne 0 ]]; then
-    log_error "This script must be run as root or with sudo: sudo $0"
-    exit 1
+    log_warn "Running as non-root user ($(whoami)). Ensure write permissions to homelab directories."
 fi
 
 # Detect or specify target host
@@ -73,12 +74,12 @@ mkdir -p "${TEMP_DIR}"
 
 if [[ "${TARGET_HOST}" == "dev2" ]]; then
     # --------------------------------------------------------------------------
-    # DEV2 BACKUP: Obsidian & Beszel Monitoring Hub
+    # DEV2 BACKUP: Obsidian, Beszel Monitoring Hub, & Gatus Status Dashboard
     # --------------------------------------------------------------------------
-    mkdir -p "${TEMP_DIR}/config"
+    mkdir -p "${TEMP_DIR}/config" "${TEMP_DIR}/gatus"
 
     # 1. Obsidian Markdown Vault & Web Data
-    log_info "[1/3] Archiving Obsidian Markdown Vault and Web configuration..."
+    log_info "[1/4] Archiving Obsidian Markdown Vault and Web configuration..."
     if [[ -d "${HOMELAB_DIR}/data/dev2/obsidian" ]]; then
         mkdir -p "${TEMP_DIR}/obsidian"
         cp -a "${HOMELAB_DIR}/data/dev2/obsidian"/. "${TEMP_DIR}/obsidian/" 2>/dev/null || true
@@ -86,15 +87,44 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     fi
 
     # 2. Beszel Server Monitoring Hub Data & Keys
-    log_info "[2/3] Archiving Beszel Hub data and cryptographic keys..."
+    log_info "[2/4] Archiving Beszel Hub data and cryptographic keys..."
     if [[ -d "${HOMELAB_DIR}/data/dev2/beszel/data" ]]; then
         mkdir -p "${TEMP_DIR}/beszel/data"
         cp -a "${HOMELAB_DIR}/data/dev2/beszel/data"/. "${TEMP_DIR}/beszel/data/" 2>/dev/null || true
+        BESZEL_DB="${HOMELAB_DIR}/data/dev2/beszel/data/data.db"
+        if [[ -f "${BESZEL_DB}" ]]; then
+            python3 -c "
+import sqlite3
+src = sqlite3.connect('${BESZEL_DB}')
+dst = sqlite3.connect('${TEMP_DIR}/beszel/data/data.db')
+src.backup(dst)
+dst.close()
+src.close()
+" 2>/dev/null || true
+        fi
         log_success "Beszel Hub metrics database and keys archived."
     fi
 
-    # 3. Host Environment & Compose Definition
-    log_info "[3/3] Archiving dev2 stack definition and environment secrets..."
+    # 3. Gatus Status Dashboard SQLite Snapshot & Configuration
+    log_info "[3/4] Creating live point-in-time SQLite snapshot of Gatus..."
+    GATUS_DB="${HOMELAB_DIR}/data/dev2/gatus/gatus.db"
+    if [[ -f "${GATUS_DB}" ]]; then
+        python3 -c "
+import sqlite3
+src = sqlite3.connect('${GATUS_DB}')
+dst = sqlite3.connect('${TEMP_DIR}/gatus/gatus.db')
+src.backup(dst)
+dst.close()
+src.close()
+"
+        log_success "Gatus database snapshot captured."
+    else
+        log_warn "Gatus gatus.db not found, skipping SQLite snapshot."
+    fi
+    [[ -f "${HOMELAB_DIR}/hosts/dev2/gatus/config.yaml" ]] && cp "${HOMELAB_DIR}/hosts/dev2/gatus/config.yaml" "${TEMP_DIR}/gatus/"
+
+    # 4. Host Environment & Compose Definition
+    log_info "[4/4] Archiving dev2 stack definition and environment secrets..."
     DEV2_ENV="${HOMELAB_DIR}/hosts/dev2/.env"
     [[ -f "${DEV2_ENV}" ]] && cp "${DEV2_ENV}" "${TEMP_DIR}/config/.env"
     [[ -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.yml"
@@ -102,9 +132,9 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
 
 else
     # --------------------------------------------------------------------------
-    # DEV1 BACKUP: Vaultwarden, AdGuard Home, Uptime Kuma, Caddy
+    # DEV1 BACKUP: Vaultwarden, AdGuard Home, Obsidian WebDAV, Caddy
     # --------------------------------------------------------------------------
-    mkdir -p "${TEMP_DIR}/vaultwarden" "${TEMP_DIR}/adguard" "${TEMP_DIR}/caddy" "${TEMP_DIR}/uptime-kuma" "${TEMP_DIR}/config"
+    mkdir -p "${TEMP_DIR}/vaultwarden" "${TEMP_DIR}/adguard" "${TEMP_DIR}/caddy" "${TEMP_DIR}/obsidian" "${TEMP_DIR}/config"
 
     # 1. Vaultwarden Point-in-Time SQLite Backup
     log_info "[1/5] Creating live point-in-time SQLite snapshot of Vaultwarden..."
@@ -125,6 +155,8 @@ src.close()
 
     [[ -f "${HOMELAB_DIR}/data/vaultwarden/config.json" ]] && cp "${HOMELAB_DIR}/data/vaultwarden/config.json" "${TEMP_DIR}/vaultwarden/"
     [[ -f "${HOMELAB_DIR}/data/vaultwarden/rsa_key.pem" ]] && cp "${HOMELAB_DIR}/data/vaultwarden/rsa_key.pem" "${TEMP_DIR}/vaultwarden/"
+    [[ -d "${HOMELAB_DIR}/data/vaultwarden/attachments" ]] && cp -a "${HOMELAB_DIR}/data/vaultwarden/attachments" "${TEMP_DIR}/vaultwarden/" 2>/dev/null || true
+    [[ -d "${HOMELAB_DIR}/data/vaultwarden/sends" ]] && cp -a "${HOMELAB_DIR}/data/vaultwarden/sends" "${TEMP_DIR}/vaultwarden/" 2>/dev/null || true
 
     # 2. AdGuard Home Configuration
     log_info "[2/5] Backing up AdGuard Home configuration..."
@@ -137,22 +169,16 @@ src.close()
     log_info "[3/5] Backing up Caddy reverse proxy files..."
     [[ -f "${HOMELAB_DIR}/Caddyfile" ]] && cp "${HOMELAB_DIR}/Caddyfile" "${TEMP_DIR}/caddy/"
     [[ -f "${HOMELAB_DIR}/hosts/dev1/Caddyfile" ]] && cp "${HOMELAB_DIR}/hosts/dev1/Caddyfile" "${TEMP_DIR}/caddy/Caddyfile.host"
+    if [[ -d "${HOMELAB_DIR}/data/caddy/data" ]]; then
+        mkdir -p "${TEMP_DIR}/caddy/data"
+        cp -a "${HOMELAB_DIR}/data/caddy/data"/. "${TEMP_DIR}/caddy/data/" 2>/dev/null || true
+    fi
 
-    # 4. Uptime Kuma Database Snapshot
-    log_info "[4/5] Creating live point-in-time SQLite snapshot of Uptime Kuma..."
-    UK_DB="${HOMELAB_DIR}/data/uptime-kuma/kuma.db"
-    if [[ -f "${UK_DB}" ]]; then
-        python3 -c "
-import sqlite3
-src = sqlite3.connect('${UK_DB}')
-dst = sqlite3.connect('${TEMP_DIR}/uptime-kuma/kuma.db')
-src.backup(dst)
-dst.close()
-src.close()
-"
-        log_success "Uptime Kuma database snapshot captured."
-    else
-        log_warn "Uptime Kuma kuma.db not found, skipping SQLite snapshot."
+    # 4. Obsidian Markdown Vault Backup
+    log_info "[4/5] Archiving primary Obsidian Markdown Vault on dev1..."
+    if [[ -d "${HOMELAB_DIR}/data/obsidian" ]]; then
+        cp -a "${HOMELAB_DIR}/data/obsidian"/. "${TEMP_DIR}/obsidian/" 2>/dev/null || true
+        log_success "Obsidian Markdown Vault archived."
     fi
 
     # 5. Stack Definitions & Secrets

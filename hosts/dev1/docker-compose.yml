@@ -79,8 +79,8 @@ services:
       - "443:443"
       - "${TAILSCALE_IP:-127.0.0.1}:8081:8081"
       - "127.0.0.1:8081:8081"
-      - "${TAILSCALE_IP:-127.0.0.1}:3001:3001"
-      - "127.0.0.1:3001:3001"
+      - "${TAILSCALE_IP:-127.0.0.1}:8082:8082"
+      - "127.0.0.1:8082:8082"
     volumes:
       - /opt/homelab/Caddyfile:/etc/caddy/Caddyfile:ro
       - /opt/homelab/data/caddy/data:/data
@@ -103,25 +103,33 @@ services:
           memory: 64M
           cpus: '0.50'
 
-  uptime-kuma:
-    image: louislam/uptime-kuma:1
-    container_name: uptime-kuma
+  obsidian_webdav:
+    image: bytemark/webdav:latest
+    container_name: obsidian_webdav
     restart: unless-stopped
     environment:
       - TZ=${TZ:-Asia/Kolkata}
+      - AUTH_TYPE=Basic
+      - USERNAME=${WEBDAV_USERNAME:-obsidian}
+      - PASSWORD=${WEBDAV_PASSWORD}
+      - LOCATION=/data
     volumes:
-      - /opt/homelab/data/uptime-kuma:/app/data
-      - /opt/homelab/hosts/dev1/uptime-kuma/smtp.js:/app/server/notification-providers/smtp.js:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/homelab/data/obsidian/vault:/var/lib/dav/data
       - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
       - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     networks:
       - homelab_net
+    healthcheck:
+      test: ["CMD", "pidof", "httpd"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 64M
           cpus: '0.50'
 
   beszel_agent:

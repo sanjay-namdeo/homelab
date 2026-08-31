@@ -210,6 +210,8 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
     mkdir -p "${HOMELAB_DIR}/data/dev2/obsidian/flatnotes_data"
     mkdir -p "${HOMELAB_DIR}/data/dev2/beszel/data"
     mkdir -p "${HOMELAB_DIR}/data/dev2/beszel/socket"
+    mkdir -p "${HOMELAB_DIR}/data/dev2/gatus"
+    mkdir -p "${HOMELAB_DIR}/hosts/dev2/gatus"
     if [[ -d "${HOMELAB_DIR}/notes" ]]; then
         cp -n "${HOMELAB_DIR}/notes"/*.md "${HOMELAB_DIR}/data/dev2/obsidian/vault/" 2>/dev/null || true
     fi
@@ -223,6 +225,7 @@ if [[ "${TARGET_HOST}" == "dev2" ]]; then
         DAV_PASS=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
         FLAT_PASS=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
         FLAT_KEY=$(openssl rand -hex 32)
+        DAV_AUTH=$(echo -n "obsidian:${DAV_PASS}" | base64)
         cat > "${DEV2_ENV}" << EOF
 # Environment Configuration (dev2)
 TZ=Asia/Kolkata
@@ -230,6 +233,7 @@ TZ=Asia/Kolkata
 # Obsidian WebDAV Sync & Flatnotes Web Editor
 WEBDAV_USERNAME=obsidian
 WEBDAV_PASSWORD=${DAV_PASS}
+WEBDAV_BASIC_AUTH=${DAV_AUTH}
 
 FLATNOTES_AUTH_TYPE=password
 FLATNOTES_USERNAME=obsidian
@@ -238,6 +242,14 @@ FLATNOTES_SECRET_KEY=${FLAT_KEY}
 
 # Beszel Server Health Hub & Agent
 BESZEL_KEY=
+
+# Gatus Service Health Dashboard & Brevo SMTP Alerting Configuration
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_FROM=sanjayjbp2007+brevo@gmail.com
+ALERT_EMAIL=sanjayjbp2007@gmail.com
 EOF
         chmod 600 "${DEV2_ENV}"
         log_success "Generated ${DEV2_ENV} (chmod 600)."
@@ -245,21 +257,22 @@ EOF
 
     # 6. Launch dev2 stack & configure Tailscale Serve
     log_info "[6/6] Launching dev2 Docker stack..."
-    docker compose -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" up -d
+    docker compose -f "${HOMELAB_DIR}/hosts/dev2/docker-compose.yml" up -d --remove-orphans
     log_success "dev2 Docker stack started."
 
     log_info "Configuring Tailscale Serve for HTTPS termination..."
-    tailscale serve --bg --https=8082 http://127.0.0.1:8082 2>/dev/null || true
+    tailscale serve --https=8082 off 2>/dev/null || true
     tailscale serve --bg --https=8083 http://127.0.0.1:8083 2>/dev/null || true
+    tailscale serve --bg --https=8085 http://127.0.0.1:8085 2>/dev/null || true
     tailscale serve --bg --https=8090 http://127.0.0.1:8090 2>/dev/null || true
-    log_success "Tailscale Serve configured (8082 -> WebDAV, 8083 -> Flatnotes, 8090 -> Beszel Hub)."
+    log_success "Tailscale Serve configured (8083 -> Flatnotes, 8085 -> Gatus, 8090 -> Beszel Hub)."
 
     echo ""
     echo "=========================================================="
     echo -e "${GREEN} dev2 Homelab Stack Deployed Successfully!${NC}"
     echo "=========================================================="
-    echo " - Obsidian WebDAV Sync:   https://${TS_FQDN:-<your-tailscale-fqdn>}:8082/data/"
     echo " - Obsidian Web Editor:    https://${TS_FQDN:-<your-tailscale-fqdn>}:8083"
+    echo " - Gatus Status Dashboard: https://${TS_FQDN:-<your-tailscale-fqdn>}:8085"
     echo " - Beszel Health Hub:      https://${TS_FQDN:-<your-tailscale-fqdn>}:8090"
     echo "=========================================================="
 
@@ -269,7 +282,10 @@ else
     mkdir -p "${HOMELAB_DIR}/data/adguard/conf"
     mkdir -p "${HOMELAB_DIR}/data/caddy/data"
     mkdir -p "${HOMELAB_DIR}/data/caddy/config"
-    mkdir -p "${HOMELAB_DIR}/data/uptime-kuma"
+    mkdir -p "${HOMELAB_DIR}/data/obsidian/vault"
+
+    chown -R 82:82 "${HOMELAB_DIR}/data/obsidian" 2>/dev/null || true
+    chmod -R 775 "${HOMELAB_DIR}/data/obsidian" 2>/dev/null || true
 
     if [ ! -f "${HOMELAB_DIR}/.env" ]; then
         if [ -f "${HOMELAB_DIR}/.env.example" ]; then
@@ -329,12 +345,12 @@ EOF
     reverse_proxy adguardhome:80
 }
 
-# Tailscale TLS certificate for Uptime Kuma (Port 3001)
-{$TAILSCALE_FQDN}:3001 {
+# Tailscale TLS certificate for Obsidian WebDAV (Port 8082)
+{$TAILSCALE_FQDN}:8082 {
     tls {
         get_certificate tailscale
     }
-    reverse_proxy uptime-kuma:3001
+    reverse_proxy obsidian_webdav:80
 }
 
 # Direct HTTP fallback: redirect to Tailscale HTTPS domain
@@ -346,7 +362,7 @@ EOF
 
     # 6. Launch dev1 stack
     log_info "[6/6] Launching dev1 Docker container stack..."
-    docker compose -f "${HOMELAB_DIR}/docker-compose.yml" up -d
+    docker compose -f "${HOMELAB_DIR}/hosts/dev1/docker-compose.yml" up -d --remove-orphans
     log_success "Docker containers started successfully!"
 
     echo ""
@@ -354,8 +370,8 @@ EOF
     echo -e "${GREEN} dev1 Homelab Stack Deployed Successfully!${NC}"
     echo "=========================================================="
     echo "Access Information (from any device connected to Tailscale):"
-    echo " - Vaultwarden:   https://${TS_FQDN:-<your-tailscale-fqdn>}"
-    echo " - AdGuard Home:  https://${TS_FQDN:-<your-tailscale-fqdn>}:8081"
-    echo " - Uptime Kuma:   https://${TS_FQDN:-<your-tailscale-fqdn>}:3001"
+    echo " - Vaultwarden:        https://${TS_FQDN:-<your-tailscale-fqdn>}"
+    echo " - AdGuard Home:       https://${TS_FQDN:-<your-tailscale-fqdn>}:8081"
+    echo " - Obsidian WebDAV:    https://${TS_FQDN:-<your-tailscale-fqdn>}:8082/data/"
     echo "=========================================================="
 fi

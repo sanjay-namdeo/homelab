@@ -8,25 +8,25 @@ A production-grade, resource-efficient Obsidian note-taking and Beszel server he
 
 | Service | Container Name | Internal Port | Tailscale Endpoint | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **Obsidian WebDAV Sync** | `obsidian_webdav` | `127.0.0.1:8082` | `https://dev2.<tailnet>.ts.net:8082/data/` | High-performance WebDAV sync backend for Obsidian apps |
 | **Obsidian Flatnotes Web** | `obsidian_web` | `127.0.0.1:8083` | `https://dev2.<tailnet>.ts.net:8083` (Port 8083) | Fast, lightweight browser markdown viewer & editor |
+| **Gatus Status Dashboard** | `gatus` | `127.0.0.1:8085` | `https://dev2.<tailnet>.ts.net:8085` (Port 8085) | Automated service health status page & Brevo SMTP alerting hub |
 | **Beszel Hub Dashboard** | `beszel` | `127.0.0.1:8090` | `https://dev2.<tailnet>.ts.net:8090` (Port 8090) | Central lightweight server health & metrics dashboard |
 | **Beszel Agent** | `beszel_agent` | Unix Socket | `IPC (/beszel_socket/beszel.sock)` | Host resource & Docker container metric collector |
-| **Tailscale Serve** | Native Daemon | N/A | Ports 8082, 8083, 8090 | Automatic Let's Encrypt TLS termination via MagicDNS |
+| **Tailscale Serve** | Native Daemon | N/A | Ports 8083, 8085, 8090 | Automatic Let's Encrypt TLS termination via MagicDNS |
 
 ---
 
 ## 🔒 Security & Network Isolation Model
 
-- **Zero WAN/LAN Exposure**: All container ports (`8082`, `8083`, `8090`) bind strictly to `127.0.0.1` or the internal bridge network `dev2_net`. External network interfaces (`ens3` / WAN) expose **zero open ports**.
+- **Zero WAN/LAN Exposure**: All container ports (`8083`, `8085`, `8090`) bind strictly to `127.0.0.1` or the internal bridge network `dev2_net`. External network interfaces (`ens3` / WAN) expose **zero open ports**.
 - **Unix Domain Socket IPC**: The local `beszel_agent` communicates directly with `beszel` Hub via a shared Unix domain socket (`/beszel_socket/beszel.sock`), eliminating host port exposure.
 - **Tailscale TLS Termination**: Encrypted ingress is handled natively by `tailscale serve`, providing valid Let's Encrypt certificates across all ports.
 - **Hard Resource Limits**:
-  - `obsidian_webdav`: Max 64 MB RAM / 0.50 vCPU (~5 MB idle)
   - `obsidian_web`: Max 128 MB RAM / 0.50 vCPU (~50 MB idle)
+  - `gatus`: Max 64 MB RAM / 0.25 vCPU (~15 MB idle)
   - `beszel`: Max 128 MB RAM / 0.50 vCPU (~15 MB idle)
   - `beszel_agent`: Max 64 MB RAM / 0.25 vCPU (~8 MB idle)
-  - *Full Stack Idle Footprint*: ~75 MB total RAM across all four containers.
+  - *Full Stack Idle Footprint*: ~90 MB total RAM across all containers.
 
 ---
 
@@ -43,8 +43,8 @@ chmod 600 .env
 docker compose up -d
 
 # 3. Enable Tailscale Serve HTTPS reverse proxies
-sudo tailscale serve --bg --https=8082 http://127.0.0.1:8082
 sudo tailscale serve --bg --https=8083 http://127.0.0.1:8083
+sudo tailscale serve --bg --https=8085 http://127.0.0.1:8085
 sudo tailscale serve --bg --https=8090 http://127.0.0.1:8090
 ```
 
@@ -55,12 +55,12 @@ sudo tailscale serve --bg --https=8090 http://127.0.0.1:8090
 ### 1. Desktop & Mobile Sync Setup (PC / Mac / iOS / Android)
 1. Open the **Obsidian** app on your device.
 2. Go to **Settings ➔ Community Plugins ➔ Browse**.
-3. Search for and install **Remotely Save** (by *fyears* / *sboersma*). Enable the plugin.
+3. Search and install **Remotely Save** (by *fyears* / *sboersma*). Enable the plugin.
 4. Open **Remotely Save Settings**:
    - **Sync Service**: Select `Webdav`.
-   - **Server Address**: `https://dev2.<tailnet>.ts.net:8082/data/`
-   - **Username**: `obsidian` (or configured `WEBDAV_USERNAME` in `.env`)
-   - **Password**: Your `WEBDAV_PASSWORD` from `/opt/homelab/hosts/dev2/.env`
+   - **Server Address**: `https://dev1.<tailnet>.ts.net:8082/data/`
+   - **Username**: `obsidian`
+   - **Password**: Your `WEBDAV_PASSWORD` from `/opt/homelab/hosts/dev1/.env`
    - **Auth Type**: `Basic`
    - **Schedule**: Enable auto-sync on app startup, interval (e.g. every 5 minutes), or after note changes.
 5. Click **Check Connection / Verify** ➔ Click the ribbon sync icon to run the initial sync.
@@ -99,6 +99,35 @@ To monitor additional servers on your tailnet:
 
 ---
 
+## 🚦 Gatus: Automated Service Health Dashboard & Email Alerting
+
+Gatus provides a zero-maintenance, code-defined status page that continuously monitors all homelab services across nodes and sends real-time email alerts via Brevo SMTP relay upon service degradation or recovery.
+
+### 1. Dashboard Access & Live Status
+Open the Gatus status page in your browser while connected to Tailscale:
+👉 **`https://dev2.<tailnet>.ts.net:8085`** (e.g. `https://dev2.tail256d6d.ts.net:8085`)
+
+### 2. Pre-Configured Monitored Services (Migrated from Uptime Kuma)
+
+| Service Name | Target Endpoint | Health Condition | Alert Channel |
+| :--- | :--- | :--- | :--- |
+| **dev1 - Vaultwarden HTTPS** | `https://dev1.<tailnet>.ts.net/alive` | `[STATUS] == 200` | Brevo SMTP Email |
+| **dev1 - AdGuard Home Web** | `https://dev1.<tailnet>.ts.net:8081/login.html` | `[STATUS] == 200` | Brevo SMTP Email |
+| **dev1 - Obsidian WebDAV Sync** | `https://dev1.<tailnet>.ts.net:8082/data/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP Email |
+| **dev1 - AdGuard DNS Service** | `100.69.247.60:53` (DNS `A` query) | `[DNS_RCODE] == NOERROR` | Brevo SMTP Email |
+| **dev1 - Caddy Reverse Proxy** | `tcp://100.69.247.60:443` | `[CONNECTED] == true` | Brevo SMTP Email |
+| **dev2 - Obsidian Web Editor** | `http://obsidian_web:8080/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP Email |
+| **dev2 - Beszel Health Hub** | `http://beszel:8090/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP Email |
+| **dev2 - Gatus Status Hub** | `http://127.0.0.1:8080/` | `[STATUS] == 200` | Local Healthcheck |
+
+### 3. Out-of-the-Box Brevo SMTP Alerting
+- **Relay Host**: `smtp-relay.brevo.com:587` (STARTTLS)
+- **Sender**: `sanjayjbp2007+brevo@gmail.com`
+- **Recipient**: Configured via `ALERT_EMAIL` in `hosts/dev2/.env`
+- **Threshold**: Triggers alert after 3 consecutive failures; automatically sends recovery email upon resolution (`send-on-resolved: true`).
+
+---
+
 ## 🛠️ Operational Commands
 
 ### Health & Diagnostic Check
@@ -118,8 +147,15 @@ systemctl status homelab-backup.timer
 systemctl list-timers homelab-backup.timer
 ```
 
-### Disaster Recovery Restore
+### Disaster Recovery Restore & Cloudflare R2 Drill
 ```bash
-# From local backup
-sudo bash /opt/homelab/scripts/restore_homelab.sh /opt/homelab/data/backups/homelab_backup_dev2_<timestamp>.tar.gz
+# 1. Restore from local backup archive
+sudo bash /opt/homelab/scripts/restore_homelab.sh --latest
+
+# 2. Pull directly from Cloudflare R2 encrypted vault and restore:
+rclone copy r2-crypt:<backup_filename>.tar.gz /opt/homelab/data/backups/ --config /opt/homelab/data/rclone/rclone.conf
+sudo bash /opt/homelab/scripts/restore_homelab.sh --latest
+
+# 3. Execute automated catastrophic failure & recovery drill:
+sudo bash /opt/homelab/scripts/test_disaster_recovery.sh
 ```

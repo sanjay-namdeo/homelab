@@ -1,35 +1,4 @@
 services:
-  obsidian_webdav:
-    image: bytemark/webdav:latest
-    container_name: obsidian_webdav
-    restart: unless-stopped
-    environment:
-      - TZ=${TZ:-Asia/Kolkata}
-      - AUTH_TYPE=Basic
-      - USERNAME=${WEBDAV_USERNAME:-obsidian}
-      - PASSWORD=${WEBDAV_PASSWORD}
-      - LOCATION=/data
-    volumes:
-      - /opt/homelab/data/dev2/obsidian/vault:/var/lib/dav/data
-      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
-      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-    ports:
-      - "127.0.0.1:8082:80"
-    networks:
-      - dev2_net
-    healthcheck:
-      test: ["CMD", "pidof", "httpd"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-          cpus: '0.50'
-
   obsidian_web:
     image: dullage/flatnotes:latest
     container_name: obsidian_web
@@ -123,6 +92,43 @@ services:
           memory: 64M
           cpus: '0.25'
 
+  gatus:
+    image: twinproduction/gatus:latest
+    container_name: gatus
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Kolkata}
+      - SMTP_HOST=${SMTP_HOST:-smtp-relay.brevo.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM:-sanjayjbp2007+brevo@gmail.com}
+      - ALERT_EMAIL=${ALERT_EMAIL:-sanjayjbp2007@gmail.com}
+      - WEBDAV_BASIC_AUTH=${WEBDAV_BASIC_AUTH:-}
+    ports:
+      - "127.0.0.1:8085:8080"
+    volumes:
+      - /opt/homelab/hosts/dev2/gatus/config.yaml:/config/config.yaml:ro
+      - /opt/homelab/data/dev2/gatus:/data
+      - /bin/busybox:/bin/busybox:ro
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
+      - dev2_net
+    healthcheck:
+      test: ["CMD", "/bin/busybox", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.25'
+
 networks:
   dev2_net:
     driver: bridge
+
