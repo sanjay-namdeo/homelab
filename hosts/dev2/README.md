@@ -105,7 +105,7 @@ Gatus provides a zero-maintenance, code-defined status page that continuously mo
 
 ### 1. Dashboard Access & Live Status
 Open the Gatus status page in your browser while connected to Tailscale:
-👉 **`https://dev2.<tailnet>.ts.net:8085`** (e.g. `https://dev2.tail256d6d.ts.net:8085`)
+👉 **`https://dev2.<tailnet>.ts.net:8085`**
 
 ### 2. Pre-Configured Monitored Services (Migrated from Uptime Kuma)
 
@@ -114,15 +114,15 @@ Open the Gatus status page in your browser while connected to Tailscale:
 | **dev1 - Vaultwarden HTTPS** | `https://dev1.<tailnet>.ts.net/alive` | `[STATUS] == 200` | Brevo SMTP Email |
 | **dev1 - AdGuard Home Web** | `https://dev1.<tailnet>.ts.net:8081/login.html` | `[STATUS] == 200` | Brevo SMTP Email |
 | **dev1 - Obsidian WebDAV Sync** | `https://dev1.<tailnet>.ts.net:8082/data/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP Email |
-| **dev1 - AdGuard DNS Service** | `100.69.247.60:53` (DNS `A` query) | `[DNS_RCODE] == NOERROR` | Brevo SMTP Email |
-| **dev1 - Caddy Reverse Proxy** | `tcp://100.69.247.60:443` | `[CONNECTED] == true` | Brevo SMTP Email |
+| **dev1 - AdGuard DNS Service** | `<dev1-tailscale-ip>:53` (DNS `A` query) | `[DNS_RCODE] == NOERROR` | Brevo SMTP Email |
+| **dev1 - Caddy Reverse Proxy** | `tcp://<dev1-tailscale-ip>:443` | `[CONNECTED] == true` | Brevo SMTP Email |
 | **dev2 - Obsidian Web Editor** | `http://obsidian_web:8080/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP Email |
 | **dev2 - Beszel Health Hub** | `http://beszel:8090/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP Email |
 | **dev2 - Gatus Status Hub** | `http://127.0.0.1:8080/` | `[STATUS] == 200` | Local Healthcheck |
 
 ### 3. Out-of-the-Box Brevo SMTP Alerting
 - **Relay Host**: `smtp-relay.brevo.com:587` (STARTTLS)
-- **Sender**: `sanjayjbp2007+brevo@gmail.com`
+- **Sender**: Configured via `SMTP_FROM` in `hosts/dev2/.env`
 - **Recipient**: Configured via `ALERT_EMAIL` in `hosts/dev2/.env`
 - **Threshold**: Triggers alert after 3 consecutive failures; automatically sends recovery email upon resolution (`send-on-resolved: true`).
 

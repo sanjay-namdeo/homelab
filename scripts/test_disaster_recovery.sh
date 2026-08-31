@@ -39,7 +39,7 @@ vw_db = f'{HOMELAB_DIR}/data/vaultwarden/db.sqlite3'
 con = sqlite3.connect(vw_db)
 con.execute('DROP TABLE IF EXISTS users;')
 con.execute('CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT, notes_count INTEGER);')
-con.execute('INSERT INTO users VALUES ("u100", "sanjay@homelab.local", 42);')
+con.execute('INSERT INTO users VALUES ("u100", "testuser@homelab.local", 42);')
 con.execute('DROP TABLE IF EXISTS ciphers;')
 con.execute('CREATE TABLE ciphers (id TEXT PRIMARY KEY, name TEXT, secure_data TEXT);')
 con.execute('INSERT INTO ciphers VALUES ("c1", "Proxmox Root", "vault_secret_data_9981");')
@@ -47,7 +47,7 @@ con.commit()
 con.close()
 
 with open(f'{HOMELAB_DIR}/data/vaultwarden/config.json', 'w') as f:
-    f.write('{"domain":"https://dev1.tail256d6d.ts.net","signups_allowed":false}\n')
+    f.write('{"domain":"https://dev1.yourtailnet.ts.net","signups_allowed":false}\n')
 
 with open(f'{HOMELAB_DIR}/data/vaultwarden/rsa_key.pem', 'w') as f:
     f.write('-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0mockkey...\n-----END RSA PRIVATE KEY-----\n')
@@ -75,8 +75,8 @@ beszel_db = f'{HOMELAB_DIR}/data/dev2/beszel/data/data.db'
 con = sqlite3.connect(beszel_db)
 con.execute('DROP TABLE IF EXISTS systems;')
 con.execute('CREATE TABLE systems (id TEXT PRIMARY KEY, name TEXT, host TEXT);')
-con.execute('INSERT INTO systems VALUES ("sys_dev1", "dev1", "100.69.247.60");')
-con.execute('INSERT INTO systems VALUES ("sys_dev2", "dev2", "100.82.191.45");')
+con.execute('INSERT INTO systems VALUES ("sys_dev1", "dev1", "100.64.0.10");')
+con.execute('INSERT INTO systems VALUES ("sys_dev2", "dev2", "100.64.0.20");')
 con.commit()
 con.close()
 
@@ -202,7 +202,7 @@ else:
     user = con.execute('SELECT email, notes_count FROM users WHERE id="u100"').fetchone()
     cipher = con.execute('SELECT name, secure_data FROM ciphers WHERE id="c1"').fetchone()
     con.close()
-    if user == ('sanjay@homelab.local', 42) and cipher == ('Proxmox Root', 'vault_secret_data_9981'):
+    if user == ('testuser@homelab.local', 42) and cipher == ('Proxmox Root', 'vault_secret_data_9981'):
         print('✔ dev1 Vaultwarden data integrity & record verification: PASSED')
     else:
         print(f'❌ dev1 Vaultwarden record mismatch: user={user}, cipher={cipher}')
@@ -241,7 +241,7 @@ else:
     con = sqlite3.connect(beszel_db)
     systems = con.execute('SELECT id, name, host FROM systems').fetchall()
     con.close()
-    if len(systems) == 2 and ('sys_dev1', 'dev1', '100.69.247.60') in systems:
+    if len(systems) == 2 and ('sys_dev1', 'dev1', '100.64.0.10') in systems:
         print('✔ dev2 Beszel Hub telemetry database & keys restored: PASSED')
     else:
         print(f'❌ dev2 Beszel database verification failed: {systems}')

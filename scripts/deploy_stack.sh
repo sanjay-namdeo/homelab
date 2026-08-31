@@ -243,13 +243,19 @@ FLATNOTES_SECRET_KEY=${FLAT_KEY}
 # Beszel Server Health Hub & Agent
 BESZEL_KEY=
 
+# Tailscale Multi-Host Network Settings
+DEV1_TAILSCALE_FQDN=${DEV1_TAILSCALE_FQDN:-dev1.${TAILNET_NAME:-yourtailnet.ts.net}}
+DEV1_TAILSCALE_IP=${DEV1_TAILSCALE_IP:-}
+DEV2_TAILSCALE_FQDN=${DEV2_TAILSCALE_FQDN:-dev2.${TAILNET_NAME:-yourtailnet.ts.net}}
+DEV2_TAILSCALE_IP=${DEV2_TAILSCALE_IP:-127.0.0.1}
+
 # Gatus Service Health Dashboard & Brevo SMTP Alerting Configuration
 SMTP_HOST=smtp-relay.brevo.com
 SMTP_PORT=587
 SMTP_USERNAME=
 SMTP_PASSWORD=
-SMTP_FROM=sanjayjbp2007+brevo@gmail.com
-ALERT_EMAIL=sanjayjbp2007@gmail.com
+SMTP_FROM=
+ALERT_EMAIL=
 EOF
         chmod 600 "${DEV2_ENV}"
         log_success "Generated ${DEV2_ENV} (chmod 600)."

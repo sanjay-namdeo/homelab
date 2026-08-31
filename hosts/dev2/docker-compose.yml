@@ -98,12 +98,16 @@ services:
     restart: unless-stopped
     environment:
       - TZ=${TZ:-Asia/Kolkata}
+      - DEV1_TAILSCALE_FQDN=${DEV1_TAILSCALE_FQDN}
+      - DEV1_TAILSCALE_IP=${DEV1_TAILSCALE_IP}
+      - DEV2_TAILSCALE_FQDN=${DEV2_TAILSCALE_FQDN}
+      - DEV2_TAILSCALE_IP=${DEV2_TAILSCALE_IP:-127.0.0.1}
       - SMTP_HOST=${SMTP_HOST:-smtp-relay.brevo.com}
       - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - SMTP_FROM=${SMTP_FROM:-sanjayjbp2007+brevo@gmail.com}
-      - ALERT_EMAIL=${ALERT_EMAIL:-sanjayjbp2007@gmail.com}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - ALERT_EMAIL=${ALERT_EMAIL:-}
       - WEBDAV_BASIC_AUTH=${WEBDAV_BASIC_AUTH:-}
     ports:
       - "127.0.0.1:8085:8080"

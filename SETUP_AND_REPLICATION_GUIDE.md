@@ -311,7 +311,7 @@ Gatus is deployed on `dev2` as a declarative, code-defined health status dashboa
 
 ### 1. Web UI Access
 Open the status dashboard in your browser over Tailscale:
-👉 **`https://dev2.<tailnet>.ts.net:8085`** (e.g. `https://dev2.tail256d6d.ts.net:8085`)
+👉 **`https://dev2.<tailnet>.ts.net:8085`**
 
 ### 2. Pre-Configured Monitored Services & Endpoints
 
@@ -320,8 +320,8 @@ Open the status dashboard in your browser over Tailscale:
 | **`dev1` (Core)** | `dev1 - Vaultwarden HTTPS` | `https://dev1.<tailnet>.ts.net/alive` | `[STATUS] == 200` | Brevo SMTP |
 | **`dev1` (Core)** | `dev1 - AdGuard Home Web` | `https://dev1.<tailnet>.ts.net:8081/login.html` | `[STATUS] == 200` | Brevo SMTP |
 | **`dev1` (Core)** | `dev1 - Obsidian WebDAV Sync` | `https://dev1.<tailnet>.ts.net:8082/data/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP |
-| **`dev1` (Core)** | `dev1 - AdGuard DNS Service` | `100.69.247.60` (DNS Query: `google.com`) | `[DNS_RCODE] == NOERROR` | Brevo SMTP |
-| **`dev1` (Core)** | `dev1 - Caddy Reverse Proxy` | `tcp://100.69.247.60:443` | `[CONNECTED] == true` | Brevo SMTP |
+| **`dev1` (Core)** | `dev1 - AdGuard DNS Service` | `<dev1-tailscale-ip>` (DNS Query: `google.com`) | `[DNS_RCODE] == NOERROR` | Brevo SMTP |
+| **`dev1` (Core)** | `dev1 - Caddy Reverse Proxy` | `tcp://<dev1-tailscale-ip>:443` | `[CONNECTED] == true` | Brevo SMTP |
 | **`dev2` (Hub)** | `dev2 - Obsidian Web Editor` | `http://obsidian_web:8080/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP |
 | **`dev2` (Hub)** | `dev2 - Beszel Health Hub` | `http://beszel:8090/` | `[STATUS] >= 200` & `< 400` | Brevo SMTP |
 | **`dev2` (Hub)** | `dev2 - Gatus Status Hub` | `http://127.0.0.1:8080/` | `[STATUS] == 200` | Local Health |

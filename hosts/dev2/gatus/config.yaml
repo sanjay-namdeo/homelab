@@ -2,6 +2,7 @@
 # Gatus Service Health & Status Page Configuration (dev2)
 # ==============================================================================
 # Declarative multi-host health monitoring with native Brevo SMTP alerting.
+# Sensitive endpoints, IPs, domains, and credentials are parameterized via .env
 # ==============================================================================
 
 ui:
@@ -10,15 +11,15 @@ ui:
   description: "Real-time automated service health, latency, and uptime dashboard"
   buttons:
     - name: "Beszel Health Hub"
-      link: "https://dev2.tail256d6d.ts.net:8090"
+      link: "https://${DEV2_TAILSCALE_FQDN}:8090"
     - name: "Obsidian Notes"
-      link: "https://dev2.tail256d6d.ts.net:8083"
+      link: "https://${DEV2_TAILSCALE_FQDN}:8083"
     - name: "Obsidian WebDAV"
-      link: "https://dev1.tail256d6d.ts.net:8082/data/"
+      link: "https://${DEV1_TAILSCALE_FQDN}:8082/data/"
     - name: "Vaultwarden"
-      link: "https://dev1.tail256d6d.ts.net"
+      link: "https://${DEV1_TAILSCALE_FQDN}"
     - name: "AdGuard Home"
-      link: "https://dev1.tail256d6d.ts.net:8081"
+      link: "https://${DEV1_TAILSCALE_FQDN}:8081"
 
 storage:
   type: sqlite
@@ -39,7 +40,7 @@ endpoints:
   # ============================================================================
   - name: "dev1 - Vaultwarden HTTPS"
     group: "dev1 - Core Infrastructure"
-    url: "https://dev1.tail256d6d.ts.net/alive"
+    url: "https://${DEV1_TAILSCALE_FQDN}/alive"
     interval: 60s
     client:
       insecure: true
@@ -55,7 +56,7 @@ endpoints:
 
   - name: "dev1 - AdGuard Home Web"
     group: "dev1 - Core Infrastructure"
-    url: "https://dev1.tail256d6d.ts.net:8081/login.html"
+    url: "https://${DEV1_TAILSCALE_FQDN}:8081/login.html"
     interval: 60s
     client:
       insecure: true
@@ -71,7 +72,7 @@ endpoints:
 
   - name: "dev1 - Obsidian WebDAV Sync"
     group: "dev1 - Core Infrastructure"
-    url: "https://dev1.tail256d6d.ts.net:8082/data/"
+    url: "https://${DEV1_TAILSCALE_FQDN}:8082/data/"
     interval: 60s
     client:
       insecure: true
@@ -90,7 +91,7 @@ endpoints:
 
   - name: "dev1 - AdGuard DNS Service"
     group: "dev1 - Core Infrastructure"
-    url: "100.69.247.60"
+    url: "${DEV1_TAILSCALE_IP}"
     interval: 60s
     dns:
       query-name: "google.com"
@@ -106,7 +107,7 @@ endpoints:
 
   - name: "dev1 - Caddy Reverse Proxy"
     group: "dev1 - Core Infrastructure"
-    url: "tcp://100.69.247.60:443"
+    url: "tcp://${DEV1_TAILSCALE_IP}:443"
     interval: 60s
     conditions:
       - "[CONNECTED] == true"

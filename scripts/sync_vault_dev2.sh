@@ -10,10 +10,25 @@ set -euo pipefail
 
 export PATH="/home/sanjay-namdeo/.local/bin:/usr/local/bin:$PATH"
 
+# Source environment configuration if present
+DEV2_ENV="/opt/homelab/hosts/dev2/.env"
+if [[ -f "${DEV2_ENV}" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "${DEV2_ENV}"
+    set +a
+fi
+
 VAULT_DIR="/opt/homelab/data/dev2/obsidian/vault"
-WEBDAV_URL="https://dev1.tail256d6d.ts.net:8082/data/"
+DEV1_HOST="${DEV1_TAILSCALE_FQDN:-dev1.yourtailnet.ts.net}"
+WEBDAV_URL="${WEBDAV_URL:-https://${DEV1_HOST}:8082/data/}"
 WEBDAV_USER="${WEBDAV_USERNAME:-obsidian}"
-WEBDAV_PASS="${WEBDAV_PASSWORD:-ooWQsB8jPwIjbpeG}"
+WEBDAV_PASS="${WEBDAV_PASSWORD:-}"
+
+if [[ -z "${WEBDAV_PASS}" ]]; then
+    echo "[ERROR] WEBDAV_PASSWORD is not set in environment or ${DEV2_ENV}" >&2
+    exit 1
+fi
 
 # Obscure password for rclone
 RCLONE_PASS=$(rclone obscure "${WEBDAV_PASS}")
