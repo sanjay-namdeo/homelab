@@ -132,12 +132,12 @@ src.close()
 
 else
     # --------------------------------------------------------------------------
-    # DEV1 BACKUP: Vaultwarden, AdGuard Home, Obsidian WebDAV, Caddy
+    # DEV1 BACKUP: Vaultwarden, AdGuard Home, Obsidian WebDAV, Caddy, Actual Budget
     # --------------------------------------------------------------------------
-    mkdir -p "${TEMP_DIR}/vaultwarden" "${TEMP_DIR}/adguard" "${TEMP_DIR}/caddy" "${TEMP_DIR}/obsidian" "${TEMP_DIR}/config"
+    mkdir -p "${TEMP_DIR}/vaultwarden" "${TEMP_DIR}/adguard" "${TEMP_DIR}/caddy" "${TEMP_DIR}/obsidian" "${TEMP_DIR}/actual" "${TEMP_DIR}/config"
 
     # 1. Vaultwarden Point-in-Time SQLite Backup
-    log_info "[1/5] Creating live point-in-time SQLite snapshot of Vaultwarden..."
+    log_info "[1/6] Creating live point-in-time SQLite snapshot of Vaultwarden..."
     VW_DB="${HOMELAB_DIR}/data/vaultwarden/db.sqlite3"
     if [[ -f "${VW_DB}" ]]; then
         python3 -c "
@@ -159,14 +159,14 @@ src.close()
     [[ -d "${HOMELAB_DIR}/data/vaultwarden/sends" ]] && cp -a "${HOMELAB_DIR}/data/vaultwarden/sends" "${TEMP_DIR}/vaultwarden/" 2>/dev/null || true
 
     # 2. AdGuard Home Configuration
-    log_info "[2/5] Backing up AdGuard Home configuration..."
+    log_info "[2/6] Backing up AdGuard Home configuration..."
     if [[ -d "${HOMELAB_DIR}/data/adguard/conf" ]]; then
         cp -r "${HOMELAB_DIR}/data/adguard/conf" "${TEMP_DIR}/adguard/"
         log_success "AdGuard Home configuration backed up."
     fi
 
     # 3. Caddy Configuration & Certificate State
-    log_info "[3/5] Backing up Caddy reverse proxy files..."
+    log_info "[3/6] Backing up Caddy reverse proxy files..."
     [[ -f "${HOMELAB_DIR}/Caddyfile" ]] && cp "${HOMELAB_DIR}/Caddyfile" "${TEMP_DIR}/caddy/"
     [[ -f "${HOMELAB_DIR}/hosts/dev1/Caddyfile" ]] && cp "${HOMELAB_DIR}/hosts/dev1/Caddyfile" "${TEMP_DIR}/caddy/Caddyfile.host"
     if [[ -d "${HOMELAB_DIR}/data/caddy/data" ]]; then
@@ -175,14 +175,45 @@ src.close()
     fi
 
     # 4. Obsidian Markdown Vault Backup
-    log_info "[4/5] Archiving primary Obsidian Markdown Vault on dev1..."
+    log_info "[4/6] Archiving primary Obsidian Markdown Vault on dev1..."
     if [[ -d "${HOMELAB_DIR}/data/obsidian" ]]; then
         cp -a "${HOMELAB_DIR}/data/obsidian"/. "${TEMP_DIR}/obsidian/" 2>/dev/null || true
         log_success "Obsidian Markdown Vault archived."
     fi
 
-    # 5. Stack Definitions & Secrets
-    log_info "[5/5] Archiving stack definition files..."
+    # 5. Actual Budget SQLite Databases & Configuration
+    log_info "[5/6] Creating live point-in-time SQLite snapshots for Actual Budget..."
+    if [[ -d "${HOMELAB_DIR}/data/actual" ]]; then
+        mkdir -p "${TEMP_DIR}/actual"
+        python3 -c "
+import os, sqlite3, shutil
+src_root = '${HOMELAB_DIR}/data/actual'
+dst_root = '${TEMP_DIR}/actual'
+if os.path.exists(src_root):
+    for root, dirs, files in os.walk(src_root):
+        rel_path = os.path.relpath(root, src_root)
+        target_dir = os.path.join(dst_root, rel_path) if rel_path != '.' else dst_root
+        os.makedirs(target_dir, exist_ok=True)
+        for f in files:
+            src_file = os.path.join(root, f)
+            dst_file = os.path.join(target_dir, f)
+            if f.endswith(('.sqlite', '.sqlite3', '.db')):
+                try:
+                    src = sqlite3.connect(src_file)
+                    dst = sqlite3.connect(dst_file)
+                    src.backup(dst)
+                    dst.close()
+                    src.close()
+                except Exception:
+                    shutil.copy2(src_file, dst_file)
+            elif not f.endswith(('-wal', '-shm', '-journal')):
+                shutil.copy2(src_file, dst_file)
+" 2>/dev/null || true
+        log_success "Actual Budget databases and configurations archived."
+    fi
+
+    # 6. Stack Definitions & Secrets
+    log_info "[6/6] Archiving stack definition files..."
     [[ -f "${HOMELAB_DIR}/.env" ]] && cp "${HOMELAB_DIR}/.env" "${TEMP_DIR}/config/.env"
     [[ -f "${HOMELAB_DIR}/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.yml"
     [[ -f "${HOMELAB_DIR}/hosts/dev1/docker-compose.yml" ]] && cp "${HOMELAB_DIR}/hosts/dev1/docker-compose.yml" "${TEMP_DIR}/config/docker-compose.dev1.yml"

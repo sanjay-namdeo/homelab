@@ -16,10 +16,11 @@ graph TD
     end
 
     subgraph HostDev1 ["🖥️ Host: dev1 (Core Infrastructure & WebDAV)"]
-        Caddy["⚡ Caddy Reverse Proxy (TLS :443, :8081, :8082)"]
+        Caddy["⚡ Caddy Reverse Proxy (TLS :443, :8081, :8082, :8084)"]
         VW["🔑 Vaultwarden (:8080)"]
         AG["🛡️ AdGuard Home (:53 DNS, :8081 Web)"]
         ObsDAV["📁 Obsidian WebDAV Sync (:8082)"]
+        Act["💰 Actual Budget (:8084)"]
     end
 
     subgraph HostDev2 ["🖥️ Host: dev2 (Knowledge Hub & Monitoring)"]
@@ -34,6 +35,7 @@ graph TD
     Caddy -->|HTTPS :443| VW
     Caddy -->|HTTPS :8081| AG
     Caddy -->|HTTPS :8082| ObsDAV
+    Caddy -->|HTTPS :8084| Act
     TS1 -.->|DNS Port 53| AG
 
     Client -->|HTTPS :8083 / :8085 / :8090| TS2
@@ -65,7 +67,7 @@ Tailscale provisions free, trusted **Let's Encrypt SSL certificates** automatica
 homelab/
 ├── hosts/
 │   ├── dev1/                      # Host dev1: Core Privacy & Cloud Stack
-│   │   ├── docker-compose.yml     # Vaultwarden, AdGuard Home, Obsidian WebDAV, Caddy, Beszel Agent
+│   │   ├── docker-compose.yml     # Vaultwarden, AdGuard Home, Obsidian WebDAV, Actual Budget, Caddy, Beszel Agent
 │   │   ├── Caddyfile              # Tailscale TLS reverse proxy configuration
 │   │   ├── .env.example
 │   │   └── README.md
@@ -136,6 +138,7 @@ docker compose up -d
 - **Vaultwarden**: `https://dev1.<tailnet>.ts.net`
 - **AdGuard Home**: `https://dev1.<tailnet>.ts.net:8081`
 - **Obsidian WebDAV Sync**: `https://dev1.<tailnet>.ts.net:8082/data/`
+- **Actual Budget**: `https://dev1.<tailnet>.ts.net:8084`
 
 ### Deploying on `dev2` (Knowledge Hub & Server Monitoring)
 ```bash

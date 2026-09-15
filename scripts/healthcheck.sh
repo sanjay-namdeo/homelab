@@ -213,7 +213,7 @@ else
 
     # 2. Container Service Health
     header "2. Container Service Health"
-    CONTAINERS=("vaultwarden" "adguardhome" "caddy" "obsidian_webdav" "beszel_agent")
+    CONTAINERS=("vaultwarden" "adguardhome" "caddy" "actual_server" "obsidian_webdav" "beszel_agent")
     for c in "${CONTAINERS[@]}"; do
         if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
             STATUS=$(docker inspect --format='{{.State.Status}}' "${c}" 2>/dev/null || echo "unknown")
@@ -238,6 +238,16 @@ else
             pass "Vaultwarden HTTPS is responding (https://${TS_FQDN} -> HTTP 200 OK)"
         else
             warn "Vaultwarden HTTPS returned status code ${HTTP_CODE}"
+        fi
+    fi
+
+    # Actual Budget HTTPS
+    if [[ -n "${TS_FQDN}" ]]; then
+        ACTUAL_HTTP=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${TS_FQDN}:8084/" 2>/dev/null || echo "000")
+        if [[ "${ACTUAL_HTTP}" == "200" ]]; then
+            pass "Actual Budget HTTPS is responding (https://${TS_FQDN}:8084/ -> HTTP 200 OK)"
+        else
+            warn "Actual Budget HTTPS returned status code ${ACTUAL_HTTP}"
         fi
     fi
 
@@ -302,6 +312,12 @@ else
             fail "Port 8082 is accessible on WAN/LAN interface (${LAN_IP})!"
         fi
 
+        if ! nc -z -w 1 "${LAN_IP}" 8084 2>/dev/null; then
+            pass "Port 8084 (Actual Budget) is closed on WAN/LAN interface (${LAN_IP}) - Secure"
+        else
+            fail "Port 8084 is accessible on WAN/LAN interface (${LAN_IP})!"
+        fi
+
         if ! nc -z -w 1 "${LAN_IP}" 53 2>/dev/null; then
             pass "Port 53 is closed on WAN/LAN interface (${LAN_IP}) - Secure"
         else
@@ -314,6 +330,13 @@ else
         pass "Vaultwarden data directory permissions are strictly locked (0700)"
     elif [[ -n "${VW_PERMS}" ]]; then
         warn "Vaultwarden data directory permissions: ${VW_PERMS} (recommended: 0700)"
+    fi
+
+    ACTUAL_PERMS=$(stat -c "%a" "${HOMELAB_DIR}/data/actual" 2>/dev/null || echo "")
+    if [[ "${ACTUAL_PERMS}" == "700" ]]; then
+        pass "Actual Budget data directory permissions are strictly locked (0700)"
+    elif [[ -n "${ACTUAL_PERMS}" ]]; then
+        warn "Actual Budget data directory permissions: ${ACTUAL_PERMS} (recommended: 0700)"
     fi
 fi
 

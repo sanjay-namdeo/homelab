@@ -18,6 +18,8 @@ ui:
       link: "https://${DEV1_TAILSCALE_FQDN}:8082/data/"
     - name: "Vaultwarden"
       link: "https://${DEV1_TAILSCALE_FQDN}"
+    - name: "Actual Budget"
+      link: "https://${DEV1_TAILSCALE_FQDN}:8084"
     - name: "AdGuard Home"
       link: "https://${DEV1_TAILSCALE_FQDN}:8081"
 
@@ -118,6 +120,22 @@ endpoints:
         success-threshold: 2
         send-on-resolved: true
         description: "dev1 Caddy Reverse Proxy TLS port 443 is unreachable"
+
+  - name: "dev1 - Actual Budget HTTPS"
+    group: "dev1 - Core Infrastructure"
+    url: "https://${DEV1_TAILSCALE_FQDN}:8084/"
+    interval: 60s
+    client:
+      insecure: true
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 2000"
+    alerts:
+      - type: email
+        failure-threshold: 3
+        success-threshold: 2
+        send-on-resolved: true
+        description: "dev1 Actual Budget personal finance server is down or unreachable"
 
   # ============================================================================
   # Node: dev2 (Knowledge Hub & Server Monitoring)

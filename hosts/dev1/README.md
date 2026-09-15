@@ -4,6 +4,7 @@
 - **Vaultwarden**: Bitwarden-compatible password manager (`https://dev1.<tailnet>.ts.net`)
 - **AdGuard Home**: Network-wide ad & tracker blocking DNS (`https://dev1.<tailnet>.ts.net:8081`)
 - **Obsidian WebDAV**: Encrypted WebDAV server for cross-device Obsidian notes sync (`https://dev1.<tailnet>.ts.net:8082/data/`)
+- **Actual Budget**: Local-first personal finance & envelope budgeting sync server (`https://dev1.<tailnet>.ts.net:8084`)
 - **Caddy**: Reverse proxy with automatic Tailscale TLS certificates
 - **Beszel Agent**: Lightweight host resource & Docker container metric collector (Port 45876)
 

@@ -324,6 +324,8 @@ else
     mkdir -p "${HOMELAB_DIR}/data/caddy/data"
     mkdir -p "${HOMELAB_DIR}/data/caddy/config"
     mkdir -p "${HOMELAB_DIR}/data/obsidian/vault"
+    mkdir -p "${HOMELAB_DIR}/data/actual"
+    chmod 700 "${HOMELAB_DIR}/data/actual"
 
     chown -R 82:82 "${HOMELAB_DIR}/data/obsidian" 2>/dev/null || true
     chmod -R 775 "${HOMELAB_DIR}/data/obsidian" 2>/dev/null || true
@@ -392,6 +394,14 @@ EOF
     reverse_proxy obsidian_webdav:80
 }
 
+# Tailscale TLS certificate for Actual Budget (Port 8084)
+{$DEV1_TAILSCALE_FQDN}:8084 {
+    tls {
+        get_certificate tailscale
+    }
+    reverse_proxy actual_server:5006
+}
+
 # Direct HTTP fallback: redirect to Tailscale HTTPS domain
 :80 {
     redir https://{$DEV1_TAILSCALE_FQDN}{uri} permanent
@@ -412,5 +422,6 @@ EOF
     echo " - Vaultwarden:        https://${TS_FQDN:-<your-tailscale-fqdn>}"
     echo " - AdGuard Home:       https://${TS_FQDN:-<your-tailscale-fqdn>}:8081"
     echo " - Obsidian WebDAV:    https://${TS_FQDN:-<your-tailscale-fqdn>}:8082/data/"
+    echo " - Actual Budget:      https://${TS_FQDN:-<your-tailscale-fqdn>}:8084"
     echo "=========================================================="
 fi

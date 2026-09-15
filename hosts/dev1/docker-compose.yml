@@ -81,6 +81,8 @@ services:
       - "127.0.0.1:8081:8081"
       - "${DEV1_TAILSCALE_IP:-127.0.0.1}:8082:8082"
       - "127.0.0.1:8082:8082"
+      - "${DEV1_TAILSCALE_IP:-127.0.0.1}:8084:8084"
+      - "127.0.0.1:8084:8084"
     volumes:
       - /opt/homelab/Caddyfile:/etc/caddy/Caddyfile:ro
       - /opt/homelab/data/caddy/data:/data
@@ -101,6 +103,36 @@ services:
       resources:
         limits:
           memory: 64M
+          cpus: '0.50'
+
+  actual_server:
+    image: actualbudget/actual-server:latest
+    container_name: actual_server
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Kolkata}
+      - ACTUAL_PORT=5006
+      - ACTUAL_UPLOAD_FILE_SIZE_LIMIT_MB=20
+      - ACTUAL_UPLOAD_FILE_SYNC_SIZE_LIMIT_MB=20
+    volumes:
+      - /opt/homelab/data/actual:/data
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      - /usr/share/zoneinfo/Asia/Kolkata:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    ports:
+      - "127.0.0.1:8084:5006"
+    networks:
+      - homelab_net
+    healthcheck:
+      test: ["CMD-SHELL", "node src/scripts/health-check.js || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
           cpus: '0.50'
 
   obsidian_webdav:

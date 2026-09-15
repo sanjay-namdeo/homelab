@@ -208,11 +208,12 @@ else
     mkdir -p "${TARGET_DIR}/data/adguard/conf"
     mkdir -p "${TARGET_DIR}/data/adguard/work"
     mkdir -p "${TARGET_DIR}/data/obsidian/vault"
+    mkdir -p "${TARGET_DIR}/data/actual"
     mkdir -p "${TARGET_DIR}/data/caddy"
     mkdir -p "${TARGET_DIR}/hosts/dev1"
 
     # 1. Restore Vaultwarden
-    log_info "[2/5] Restoring Vaultwarden database and credentials..."
+    log_info "[2/6] Restoring Vaultwarden database and credentials..."
     if [[ -f "${TEMP_EXTRACT}/vaultwarden/db.sqlite3" ]]; then
         cp "${TEMP_EXTRACT}/vaultwarden/db.sqlite3" "${TARGET_DIR}/data/vaultwarden/db.sqlite3"
     fi
@@ -227,7 +228,7 @@ else
     log_success "Vaultwarden files restored."
 
     # 2. Restore AdGuard Home
-    log_info "[3/5] Restoring AdGuard Home configuration..."
+    log_info "[3/6] Restoring AdGuard Home configuration..."
     if [[ -d "${TEMP_EXTRACT}/adguard/conf" ]]; then
         cp -r "${TEMP_EXTRACT}/adguard/conf"/* "${TARGET_DIR}/data/adguard/conf/" 2>/dev/null || true
         chmod 700 "${TARGET_DIR}/data/adguard"
@@ -237,7 +238,7 @@ else
     fi
 
     # 3. Restore Obsidian Markdown Vault
-    log_info "[4/5] Restoring primary Obsidian Markdown Vault on dev1..."
+    log_info "[4/6] Restoring primary Obsidian Markdown Vault on dev1..."
     if [[ -d "${TEMP_EXTRACT}/obsidian" ]]; then
         cp -a "${TEMP_EXTRACT}/obsidian"/. "${TARGET_DIR}/data/obsidian/" 2>/dev/null || true
         chown -R 82:82 "${TARGET_DIR}/data/obsidian" 2>/dev/null || true
@@ -245,8 +246,17 @@ else
         log_success "Obsidian Markdown Vault restored."
     fi
 
-    # 4. Restore Caddyfile & Stack Configs
-    log_info "[5/5] Restoring environment and reverse proxy configuration..."
+    # 4. Restore Actual Budget Data
+    log_info "[5/6] Restoring Actual Budget databases and files..."
+    if [[ -d "${TEMP_EXTRACT}/actual" ]]; then
+        mkdir -p "${TARGET_DIR}/data/actual"
+        cp -a "${TEMP_EXTRACT}/actual"/. "${TARGET_DIR}/data/actual/" 2>/dev/null || true
+        chmod -R 700 "${TARGET_DIR}/data/actual" 2>/dev/null || true
+        log_success "Actual Budget data restored."
+    fi
+
+    # 5. Restore Caddyfile & Stack Configs
+    log_info "[6/6] Restoring environment and reverse proxy configuration..."
     if [[ -f "${TEMP_EXTRACT}/config/.env" ]]; then
         cp "${TEMP_EXTRACT}/config/.env" "${TARGET_DIR}/.env"
         chmod 600 "${TARGET_DIR}/.env"
@@ -275,7 +285,7 @@ else
         cp -a "${TEMP_EXTRACT}/caddy/data"/. "${TARGET_DIR}/data/caddy/data/" 2>/dev/null || true
     fi
 
-    # 5. Database Integrity Verification
+    # 6. Database Integrity Verification
     echo "=========================================================="
     echo " Validating Restored Database Integrity"
     echo "=========================================================="
@@ -291,6 +301,32 @@ sys.exit(0 if res == [('ok',)] else 1)
             log_success "Vaultwarden SQLite database integrity: OK"
         else
             log_error "Vaultwarden SQLite integrity check FAILED"
+            exit 1
+        fi
+    fi
+
+    if [[ -d "${TARGET_DIR}/data/actual" ]]; then
+        ACTUAL_CHECK=$(python3 -c "
+import os, sqlite3, sys
+all_ok = True
+for root, dirs, files in os.walk('${TARGET_DIR}/data/actual'):
+    for f in files:
+        if f.endswith(('.sqlite', '.sqlite3', '.db')):
+            fpath = os.path.join(root, f)
+            try:
+                con = sqlite3.connect(fpath)
+                res = con.execute('PRAGMA integrity_check;').fetchall()
+                con.close()
+                if res != [('ok',)]:
+                    all_ok = False
+            except Exception:
+                all_ok = False
+sys.exit(0 if all_ok else 1)
+" 2>/dev/null && echo "OK" || echo "FAIL")
+        if [[ "${ACTUAL_CHECK}" == "OK" ]]; then
+            log_success "Actual Budget SQLite database integrity: OK"
+        else
+            log_error "Actual Budget SQLite integrity check FAILED"
             exit 1
         fi
     fi
