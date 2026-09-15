@@ -124,7 +124,7 @@ services:
     networks:
       - homelab_net
     healthcheck:
-      test: ["CMD-SHELL", "node src/scripts/health-check.js || exit 1"]
+      test: ["CMD", "curl", "-s", "-f", "http://127.0.0.1:5006/"]
       interval: 30s
       timeout: 5s
       retries: 3
