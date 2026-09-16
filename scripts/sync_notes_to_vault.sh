@@ -2,9 +2,10 @@
 # ==============================================================================
 # Homelab: Sync Documentation Notes to Obsidian & Flatnotes Vault
 # ==============================================================================
-# Synchronizes all organized notes to the live Obsidian / Flatnotes vault,
-# enforces WebDAV & Flatnotes permissions (UID 82), cleans search index cache,
-# and restarts Flatnotes / WebDAV.
+# Synchronizes notes into their strictly separated folders:
+# - CAMS notes -> notes/CAMS/
+# - Homelab notes -> notes/homelab/
+# Cleans legacy root clutter, sets UID 82:82 permissions, and syncs to dev1 WebDAV.
 # ==============================================================================
 
 set -euo pipefail
@@ -48,62 +49,36 @@ fi
 
 cd "${HOMELAB_DIR}"
 
-log_info "1. Checking git notes directory..."
-if [[ ! -d "${NOTES_DIR}" ]]; then
-    log_error "Notes directory ${NOTES_DIR} not found!"
+log_info "1. Validating notes directory structure..."
+if [[ ! -d "${NOTES_DIR}/CAMS" || ! -d "${NOTES_DIR}/homelab" ]]; then
+    log_error "Required directories ${NOTES_DIR}/CAMS or ${NOTES_DIR}/homelab not found!"
     exit 1
 fi
 
-log_info "2. Preparing live vault directories..."
-mkdir -p "${WEBDAV_VAULT_DIR}" "${DEV2_VAULT_DIR}" "${DEV2_INDEX_DIR}"
-mkdir -p "${WEBDAV_VAULT_DIR}/notes/homelab" "${DEV2_VAULT_DIR}/notes/homelab"
-mkdir -p "${WEBDAV_VAULT_DIR}/attachments" "${DEV2_VAULT_DIR}/attachments"
-
-log_info "3. Synchronizing all structured markdown notes to WebDAV and Flatnotes vaults..."
-# Copy all structured notes to vault roots and notes/, preserving nested folder structure.
-find "${NOTES_DIR}" -type f -name '*.md' -print0 | while IFS= read -r -d '' file; do
-    rel_path="${file#${NOTES_DIR}/}"
-    filename="$(basename "${file}")"
-    
-    # dev1 WebDAV target paths
-    target_dav_rel="${WEBDAV_VAULT_DIR}/${rel_path}"
-    target_dav_notes="${WEBDAV_VAULT_DIR}/notes/${rel_path}"
-    mkdir -p "$(dirname "${target_dav_rel}")" "$(dirname "${target_dav_notes}")"
-    cp "${file}" "${target_dav_rel}"
-    cp "${file}" "${target_dav_notes}"
-
-    # Flat root copy for Flatnotes web search indexing
-    cp "${file}" "${WEBDAV_VAULT_DIR}/${filename}"
-    cp "${file}" "${DEV2_VAULT_DIR}/${filename}"
-
-    # dev2 Flatnotes target paths
-    target_fn_rel="${DEV2_VAULT_DIR}/${rel_path}"
-    target_fn_notes="${DEV2_VAULT_DIR}/notes/${rel_path}"
-    mkdir -p "$(dirname "${target_fn_rel}")" "$(dirname "${target_fn_notes}")"
-    cp "${file}" "${target_fn_rel}"
-    cp "${file}" "${target_fn_notes}"
+log_info "2. Preparing clean local vault directories..."
+# Clean old flat root files and old notes/ subfolder from local vault dirs
+for vdir in "${WEBDAV_VAULT_DIR}" "${DEV2_VAULT_DIR}"; do
+    mkdir -p "${vdir}/CAMS" "${vdir}/homelab" "${vdir}/attachments"
+    # Remove loose .md files at vault root
+    find "${vdir}" -maxdepth 1 -name "*.md" -delete 2>/dev/null || true
+    # Remove old redundant notes/ folder if present
+    rm -rf "${vdir}/notes" 2>/dev/null || true
 done
+mkdir -p "${DEV2_INDEX_DIR}"
 
-# Copy .obsidian configs and attachments to both vaults
+log_info "3. Synchronizing CAMS and Homelab notes to vault folders..."
+# Sync CAMS notes
+rsync -av --delete "${NOTES_DIR}/CAMS/" "${WEBDAV_VAULT_DIR}/CAMS/" >/dev/null
+rsync -av --delete "${NOTES_DIR}/CAMS/" "${DEV2_VAULT_DIR}/CAMS/" >/dev/null
+
+# Sync Homelab notes
+rsync -av --delete "${NOTES_DIR}/homelab/" "${WEBDAV_VAULT_DIR}/homelab/" >/dev/null
+rsync -av --delete "${NOTES_DIR}/homelab/" "${DEV2_VAULT_DIR}/homelab/" >/dev/null
+
+# Sync .obsidian configs and attachments
 for vdir in "${WEBDAV_VAULT_DIR}" "${DEV2_VAULT_DIR}"; do
     [[ -d "${NOTES_DIR}/.obsidian" ]] && cp -r "${NOTES_DIR}/.obsidian" "${vdir}/" 2>/dev/null || true
     [[ -d "${NOTES_DIR}/attachments" ]] && cp -r "${NOTES_DIR}/attachments" "${vdir}/" 2>/dev/null || true
-
-    # Populate legacy-named files in notes/ for clients with existing file references
-    cp "${NOTES_DIR}/00 - Homelab Hub.md" "${vdir}/notes/00 - Homelab Overview & Architecture.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/02 - Service - Vaultwarden.md" "${vdir}/notes/Service - Vaultwarden.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/02 - Service - AdGuard Home.md" "${vdir}/notes/Service - AdGuard Home.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/02 - Service - Gatus.md" "${vdir}/notes/Service - Gatus.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/02 - Service - Obsidian Sync & Flatnotes.md" "${vdir}/notes/Service - Obsidian Sync & Flatnotes.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/02 - Service - Beszel Server Monitoring.md" "${vdir}/notes/Service - Beszel Server Monitoring.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/02 - Service - Caddy Reverse Proxy.md" "${vdir}/notes/Service - Caddy Reverse Proxy.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/02 - Service - Tailscale WireGuard Mesh.md" "${vdir}/notes/Service - Tailscale WireGuard Mesh.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/03 - Guide - Operations, Maintenance & Troubleshooting.md" "${vdir}/notes/Guide - Operations, Maintenance & Troubleshooting.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/04 - Disaster Recovery - Backup & Off-Site Sync (Cloudflare R2).md" "${vdir}/notes/Guide - Backup & Off-Site Sync.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/04 - Disaster Recovery - Disaster Recovery & Restore.md" "${vdir}/notes/Guide - Disaster Recovery & Restore.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/03 - Guide - Notifications & Alerting (Telegram, Pushover, Email).md" "${vdir}/notes/Notifications  - Telegram.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/03 - Guide - Beszel Multi-Node Monitoring Setup.md" "${vdir}/notes/homelab/Beszel Monitoring Setup.md" 2>/dev/null || true
-    cp "${NOTES_DIR}/03 - Guide - Obsidian Multi-Device Setup & Remotely Save.md" "${vdir}/notes/homelab/Obsidian setup.md" 2>/dev/null || true
 done
 
 log_info "4. Setting permissions for WebDAV and Flatnotes (UID 82:82)..."
@@ -122,11 +97,11 @@ if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^obsidian_webdav$";
     docker restart obsidian_webdav || true
 fi
 
-# 7. Push to remote WebDAV server via rclone if configured
+# 7. Push to remote WebDAV server via rclone with sync (prunes remote orphans)
 if command -v rclone &>/dev/null && [[ -n "${WEBDAV_PASS}" ]]; then
-    log_info "7. Pushing vault to remote WebDAV server (${DEV1_HOST}:8082)..."
+    log_info "7. Pushing clean vault to remote WebDAV server (${DEV1_HOST}:8082)..."
     RCLONE_PASS=$(rclone obscure "${WEBDAV_PASS}")
-    rclone copy \
+    rclone sync \
         --webdav-url "${WEBDAV_URL}" \
         --webdav-user "${WEBDAV_USER}" \
         --webdav-pass "${RCLONE_PASS}" \
@@ -134,13 +109,13 @@ if command -v rclone &>/dev/null && [[ -n "${WEBDAV_PASS}" ]]; then
         --exclude ".flatnotes/**" \
         --exclude "*_WRITELOCK*" \
         --exclude ".trash/**" \
-        "${WEBDAV_VAULT_DIR}" :webdav: 2>/dev/null || true
+        "${WEBDAV_VAULT_DIR}" :webdav: -v
 fi
 
 echo ""
 echo "=========================================================="
-log_success "All notes synchronized to WebDAV & Flatnotes successfully!"
+log_success "Clean vault structure synchronized successfully!"
 echo "=========================================================="
-echo "Notes in WebDAV Vault (${WEBDAV_VAULT_DIR}): $(find "${WEBDAV_VAULT_DIR}" -type f -name '*.md' 2>/dev/null | wc -l) files"
-echo "Notes in Flatnotes Vault (${DEV2_VAULT_DIR}): $(find "${DEV2_VAULT_DIR}" -type f -name '*.md' 2>/dev/null | wc -l) files"
+echo "CAMS Notes: $(find "${WEBDAV_VAULT_DIR}/CAMS" -type f -name '*.md' 2>/dev/null | wc -l) files in CAMS/"
+echo "Homelab Notes: $(find "${WEBDAV_VAULT_DIR}/homelab" -type f -name '*.md' 2>/dev/null | wc -l) files in homelab/"
 echo "=========================================================="
