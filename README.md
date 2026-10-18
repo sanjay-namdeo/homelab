@@ -196,7 +196,7 @@ The [`scripts/`](scripts/) directory contains a full suite of automation tools:
 | [`sync_vault_dev2.sh`](scripts/sync_vault_dev2.sh) | **Vault Sync** | 1-minute automated bidirectional sync between dev2 Flatnotes and dev1 Obsidian WebDAV. |
 | [`sync_notes_to_vault.sh`](scripts/sync_notes_to_vault.sh) | **Git Notes Ingest** | Copies repository markdown notes to active runtime vault volumes. |
 | [`update_vaultwarden.sh`](scripts/update_vaultwarden.sh) | **Zero-Downtime Updates** | Pre-pulls new layers while running, takes safety SQLite snapshot, hot-swaps container (~1-2s). |
-| [`rollback.sh`](scripts/rollback.sh) | **Complete Teardown** | Stops containers, purges Docker & Tailscale, restores system DNS, and wipes `/opt/homelab`. |
+| [`rollback.sh`](scripts/rollback.sh) | **Teardown & Cleanup** | Purges Docker, containerd & Tailscale, removes virtual interfaces and iptables chains, restores DNS; supports `--keep-data` (default) or `--purge-data`. |
 
 ---
 

@@ -71,7 +71,7 @@ homelab/
 | `scripts/restore_homelab.sh` | Point-in-time disaster recovery from backup archive |
 | `scripts/healthcheck.sh` | 5-tier diagnostic: Tailscale, Docker, HTTPS, DNS, system resources |
 | `scripts/update_vaultwarden.sh` | Zero-downtime Vaultwarden image update (~1–2 s downtime) |
-| `scripts/rollback.sh` | Full teardown — stops containers, purges Docker & Tailscale, wipes /opt/homelab |
+| `scripts/rollback.sh` | Full teardown & cleanup — purges Docker, containerd & Tailscale, cleans interfaces/iptables, supports `--keep-data` (default) or `--purge-data` |
 
 ---
 
